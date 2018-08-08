@@ -1,0 +1,4 @@
+Copied from Code::Blocks build script
+
+g++.exe -Wall -fexceptions -O2 -Wall -Wextra  -c D:\git\SupMover\main.cpp -o obj\Release\main.o
+g++.exe  -o bin\Release\SupMover.exe obj\Release\main.o  -s -static  

@@ -41,7 +41,7 @@ int main(int32_t argc, char** argv)
         return 0;
     }
 
-    uint32_t delay = (uint32_t)roundf(atof(argv[3]) * PTS_MULT);
+    int32_t delay = (int32_t)roundf(atof(argv[3]) * PTS_MULT);
     FILE* input  = fopen(argv[1], "rb");
     if(input == NULL){
         printf("Unable to open input file!");

@@ -3,6 +3,7 @@ SupMover - Shift timings and Screen Area of PGS/Sup subtitle
 
 # Usage
 `SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)]`
+
 `SupMover (<input.sup> <output.sup> <ms>)` old syntax, kept for backward compatibility
 
 # Modes

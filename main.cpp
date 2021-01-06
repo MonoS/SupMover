@@ -318,7 +318,7 @@ int main(int32_t argc, char** argv)
         }
 
         fread(buffer, size, 1, input);
-        if(delay != 0){
+        if(doDelay || doCrop || doResync){
             size_t start = 0;
 
             t_rect screenRect = {};

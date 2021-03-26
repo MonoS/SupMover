@@ -149,17 +149,19 @@ t_PCS ReadPCS(uint8_t* buffer) {
     pcs.numCompositionObject = *(uint8_t*)&buffer[10];
 
     for (int i = 0; i < pcs.numCompositionObject; i++) {
-        size_t bufferStartIdx = 11 + (size_t)i * 16;
+        size_t bufferStartIdx = 11 + (size_t)i * 8;
 
         pcs.compositionObject[i].objectID = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 0]);
         pcs.compositionObject[i].windowID = *(uint8_t*)&buffer[bufferStartIdx + 2];
         pcs.compositionObject[i].objectCroppedFlag = *(uint8_t*)&buffer[bufferStartIdx + 3];
         pcs.compositionObject[i].objectHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 4]);
         pcs.compositionObject[i].objectVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 6]);
-        pcs.compositionObject[i].objCropHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
-        pcs.compositionObject[i].objCropVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
-        pcs.compositionObject[i].objCropWidth = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 12]);
-        pcs.compositionObject[i].objCropHeight = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 14]);
+        /*
+        pcs.compositionObject.objCropHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
+        pcs.compositionObject.objCropVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
+        pcs.compositionObject.objCropWidth = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 12]);
+        pcs.compositionObject.objCropHeight = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 14]);
+        */
     }
 
     return pcs;
@@ -176,18 +178,21 @@ void WritePCS(t_PCS pcs, uint8_t* buffer) {
     *((uint8_t*)(&buffer[10])) = pcs.numCompositionObject;
 
     for (int i = 0; i < pcs.numCompositionObject; i++) {
-        size_t bufferStartIdx = 11 + (size_t)i * 16;
+        size_t bufferStartIdx = 11 + (size_t)i * 8;
 
         *((uint16_t*)(&buffer[bufferStartIdx + 0])) = swapEndianness(pcs.compositionObject[i].objectID);
-        *((uint8_t*)(&buffer[bufferStartIdx + 2])) = pcs.compositionObject[i].windowID;
-        *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pcs.compositionObject[i].objectCroppedFlag;
+        *((uint8_t*)(&buffer[bufferStartIdx + 2])) =                 pcs.compositionObject[i].windowID;
+        *((uint8_t*)(&buffer[bufferStartIdx + 3])) =                 pcs.compositionObject[i].objectCroppedFlag;
         *((uint16_t*)(&buffer[bufferStartIdx + 4])) = swapEndianness(pcs.compositionObject[i].objectHorPos);
         *((uint16_t*)(&buffer[bufferStartIdx + 6])) = swapEndianness(pcs.compositionObject[i].objectVerPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 8])) = swapEndianness(pcs.compositionObject[i].objCropHorPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject[i].objCropVerPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject[i].objCropWidth);
-        *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject[i].objCropHeight);
     }
+    
+    /*
+    *((uint16_t*)(&buffer[bufferStartIdx + 8])) = swapEndianness(pcs.compositionObject.objCropHorPos);
+    *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject.objCropVerPos);
+    *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject.objCropWidth);
+    *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject.objCropHeight);
+    */
 }
 
 bool rectIsContained(t_rect container, t_rect window) {
@@ -401,6 +406,7 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x17:
                     //printf("WDS\r\n");
+                    fixPCS = false;
                     if (doCrop) {
                         wds = ReadWDS(&buffer[start+ HEADER_SIZE]);
 
@@ -419,24 +425,36 @@ int main(int32_t argc, char** argv)
                             wndRect.width = wds.windows[i].WindowsWidth;
                             wndRect.height = wds.windows[i].WindowsHeight;
 
-                            if (!rectIsContained(screenRect, wndRect)) {
+                            if (   wndRect.width  > screenRect.width
+                                || wndRect.height > screenRect.height) {
                                 t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
-                            
-                                uint16_t wndRightPoint    = wndRect.x + wndRect.width;
-                                uint16_t screenRightPoint = screenRect.x + screenRect.width;
-                                if (wndRightPoint > screenRightPoint) {
-                                    corrHor = wndRightPoint - screenRightPoint;
-                                }
+                                printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                printf("Implement it!\r\n");
+                                /*
+                                pcs.width = wndRect.width;
+                                pcs.height = wndRect.height;
+                                fixPCS = true;
+                                */
+                            } else {
+                                if (!rectIsContained(screenRect, wndRect)) {
+                                    t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                                    printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
 
-                                uint16_t wndBottomPoint = wndRect.y + wndRect.height;
-                                uint16_t screenBottomPoint = screenRect.y + screenRect.height;
-                                if (wndBottomPoint > screenBottomPoint) {
-                                    corrVer = wndBottomPoint - screenBottomPoint;
-                                }
+                                    uint16_t wndRightPoint = wndRect.x + wndRect.width;
+                                    uint16_t screenRightPoint = screenRect.x + screenRect.width;
+                                    if (wndRightPoint > screenRightPoint) {
+                                        corrHor = wndRightPoint - screenRightPoint;
+                                    }
 
-                                if (corrHor + corrVer != 0) {
-                                    printf("Please check\r\n");
+                                    uint16_t wndBottomPoint = wndRect.y + wndRect.height;
+                                    uint16_t screenBottomPoint = screenRect.y + screenRect.height;
+                                    if (wndBottomPoint > screenBottomPoint) {
+                                        corrVer = wndBottomPoint - screenBottomPoint;
+                                    }
+
+                                    if (corrHor + corrVer != 0) {
+                                        printf("Please check\r\n");
+                                    }
                                 }
                             }
 
@@ -445,10 +463,6 @@ int main(int32_t argc, char** argv)
                             }
                             else {
                                 wds.windows[i].WindowsHorPos -= (crop.left + corrHor);
-                                if (corrHor != 0) {
-                                    pcs.compositionObject[i].objectHorPos -= corrHor;
-                                    fixPCS = true;
-                                }
                             }
 
                             if (crop.top > wds.windows[i].WindowsVerPos) {
@@ -456,10 +470,15 @@ int main(int32_t argc, char** argv)
                             }
                             else {
                                 wds.windows[i].WindowsVerPos -= (crop.top + corrVer);
-                                if (corrVer != 0) {
-                                    pcs.compositionObject[i].objectVerPos -= corrVer;
-                                    fixPCS = true;
-                                }
+                            }
+
+                            if (corrVer != 0) {
+                                pcs.compositionObject[i].objectVerPos -= corrVer;
+                                fixPCS = true;
+                            }
+                            if (corrHor != 0) {
+                                pcs.compositionObject[i].objectHorPos -= corrHor;
+                                fixPCS = true;
                             }
                         }
 

@@ -18,10 +18,10 @@ struct t_rect {
 };
 
 struct t_timestamp {
-    uint32_t hh;
-    uint32_t mm;
-    uint32_t ss;
-    uint32_t ms;
+    unsigned long hh;
+    unsigned long mm;
+    unsigned long ss;
+    unsigned long ms;
 };
 
 struct t_crop {
@@ -300,12 +300,12 @@ int main(int32_t argc, char** argv)
     bool doCrop = (crop.left + crop.top + crop.right + crop.bottom) > 0;
     bool doResync = resync != 1;
 
-    FILE* input; fopen_s(&input, argv[1], "rb");
+    FILE* input = fopen(argv[1], "rb");
     if(input == NULL){
         printf("Unable to open input file!");
         return -1;
     }
-    FILE* output; fopen_s(&output, argv[2], "wb");
+    FILE* output = fopen(argv[2], "wb");
     if(output == NULL){
         printf("Unable to open output file!");
         fclose(input);

@@ -18,10 +18,10 @@ struct t_rect {
 };
 
 struct t_timestamp {
-    uint32_t hh;
-    uint32_t mm;
-    uint32_t ss;
-    uint32_t ms;
+    unsigned long hh;
+    unsigned long mm;
+    unsigned long ss;
+    unsigned long ms;
 };
 
 struct t_crop {

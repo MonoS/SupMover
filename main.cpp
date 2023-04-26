@@ -32,9 +32,10 @@ struct t_crop {
 };
 
 struct t_header{
-	uint16_t header;
-	uint32_t pts1;
-	uint16_t dataLength;
+    uint16_t header;
+    uint32_t pts1;
+    uint32_t dts;
+    uint16_t dataLength;
     uint8_t  segmentType;
 };
 
@@ -98,6 +99,7 @@ t_header ReadHeader(uint8_t* buffer) {
 
     header.header = swapEndianness(*(uint16_t*)&buffer[0]);
     header.pts1 = swapEndianness(*(uint32_t*)&buffer[2]);
+    header.dts = swapEndianness(*(uint32_t*)&buffer[6]);
     header.segmentType = *(uint8_t*)&buffer[10];
     header.dataLength = swapEndianness(*(uint16_t*)&buffer[11]);
 
@@ -105,7 +107,11 @@ t_header ReadHeader(uint8_t* buffer) {
 }
 
 void WriteHeader(t_header header, uint8_t* buffer) {
+    *((uint16_t*)(&buffer[0])) = swapEndianness(header.header);
     *((uint32_t*)(&buffer[2])) = swapEndianness(header.pts1);
+    *((uint32_t*)(&buffer[6])) = swapEndianness(header.dts);
+    *((uint8_t*)(&buffer[10])) = header.segmentType;
+    *((uint16_t*)(&buffer[11])) = swapEndianness(header.dataLength);
 }
 
 t_WDS ReadWDS(uint8_t* buffer) {
@@ -225,15 +231,19 @@ t_timestamp PTStoTimestamp(uint32_t pts){
     return res;
 }
 
-bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& resync) {
+bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& resync, bool& addZero) {
     delay = 0;
     crop = {};
     resync = 1;
+    addZero = false;
     int i = 3;
     if (argc == 4) {
         //backward compatibility
         delay = (int32_t)round(atof(argv[3]) * PTS_MULT);
-        return true;
+        if(delay != 0){
+            printf("Running in backwards-compatibility mode\n");
+            return true;
+        }
     }
 
     while(i < argc) {
@@ -268,6 +278,10 @@ bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& r
 
             i += 2;
         }
+        else if (command == "add_zero") {
+            addZero = true;
+            i += 1;
+        }
         else {
             return false;
         }
@@ -283,15 +297,16 @@ int main(int32_t argc, char** argv)
 
 
     if(argc < 4){
-        printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)]\r\n");
+        printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero]\r\n");
         printf("delay and resync command are executed in the order supplied\r\n");
         return 0;
     }
     int32_t delay = {};
     t_crop crop = {};
     double resync = 1;
+    bool addZero = false;
 
-    if (!ParseCMD(argc, argv, delay, crop, resync)) {
+    if (!ParseCMD(argc, argv, delay, crop, resync, addZero)) {
         printf("Error parsing input\r\n");
         return -1;
     }
@@ -323,7 +338,7 @@ int main(int32_t argc, char** argv)
         }
 
         fread(buffer, size, 1, input);
-        if(doDelay || doCrop || doResync){
+        if(doDelay || doCrop || doResync || addZero){
             size_t start = 0;
 
             t_rect screenRect = {};
@@ -363,7 +378,7 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x16:
                     //printf("PCS\r\n");
-                    if (doCrop) {
+                    if (doCrop || addZero) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offesetCurrPCS = start;
 
@@ -399,6 +414,48 @@ int main(int32_t argc, char** argv)
                             else {
                                 pcs.compositionObject[i].objectVerPos -= crop.top;
                             }
+                        }
+
+                        if (addZero) {
+                            if (pcs.compositionNumber == 0){
+                                uint8_t zeroBuffer[60];
+                                uint8_t pos = 0;
+                                t_header zeroHeader(header);
+                                zeroHeader.pts1 = 0;
+                                zeroHeader.dataLength = 11; //Length of upcoming PCS
+                                WriteHeader(zeroHeader, &zeroBuffer[pos]);
+                                pos += 13;
+                                t_PCS zeroPcs(pcs);
+                                zeroPcs.compositionState = 0;
+                                zeroPcs.paletteUpdFlag = 0;
+                                zeroPcs.paletteID = 0;
+                                zeroPcs.numCompositionObject = 0;
+                                WritePCS(zeroPcs, &zeroBuffer[pos]);
+                                pos += zeroHeader.dataLength;
+
+                                zeroHeader.segmentType = 0x17; // WDS
+                                zeroHeader.dataLength = 10; //Length of upcoming WDS
+                                WriteHeader(zeroHeader, &zeroBuffer[pos]);
+                                pos += 13;
+                                t_WDS zeroWds;
+                                zeroWds.numberOfWindows = 1;
+                                zeroWds.windows[0].windowID = 0;
+                                zeroWds.windows[0].WindowsHorPos = 0;
+                                zeroWds.windows[0].WindowsVerPos = 0;
+                                zeroWds.windows[0].WindowsWidth = 0;
+                                zeroWds.windows[0].WindowsHeight = 0;
+                                WriteWDS(zeroWds,&zeroBuffer[pos]);
+                                pos += zeroHeader.dataLength;
+
+                                zeroHeader.segmentType = 0x80; // END
+                                zeroHeader.dataLength = 0; //Length of upcoming END
+                                WriteHeader(zeroHeader, &zeroBuffer[pos]);
+                                pos += 13;
+
+                                printf("Writing %d bytes as first display set\n", pos);
+                                fwrite(zeroBuffer, pos, 1, output);
+                            }
+                            pcs.compositionNumber += 1;
                         }
 
                         WritePCS(pcs, &buffer[start + HEADER_SIZE]);

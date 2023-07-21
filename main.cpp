@@ -31,7 +31,7 @@ struct t_crop {
     uint16_t bottom;
 };
 
-struct t_header{
+struct t_header {
     uint16_t header;
     uint32_t pts1;
     uint32_t dts;
@@ -75,23 +75,38 @@ struct t_PCS {
     t_compositionObject compositionObject[256];
 };
 
-uint16_t swapEndianness(uint16_t input){
+struct t_palette {
+    uint8_t paletteEntryID;
+    uint8_t paletteY;
+    uint8_t paletteCr;
+    uint8_t paletteCb;
+    uint8_t paletteA;
+};
+
+struct t_PDS {
+    uint8_t paletteID;
+    uint8_t paletteVersionNumber;
+    t_palette palette[255];
+    uint8_t paletteNum; //not in format, only used internally
+};
+
+uint16_t swapEndianness(uint16_t input) {
     uint16_t output;
 
-    output = (input>>8) | (input<<8);
+    output = (input >> 8) | (input << 8);
 
     return output;
 }
 
-uint32_t swapEndianness(uint32_t input){
+uint32_t swapEndianness(uint32_t input) {
     uint32_t output;
 
-    output = ((input>>24) & 0xff)     |   // move byte 3 to byte 0
-             ((input<<8)  & 0xff0000) |   // move byte 1 to byte 2
-             ((input>>8)  & 0xff00)   |   // move byte 2 to byte 1
-             ((input<<24) & 0xff000000 ); // byte 0 to byte 3;
+    output = ((input >> 24) & 0xff) |   // move byte 3 to byte 0
+        ((input << 8) & 0xff0000) |   // move byte 1 to byte 2
+        ((input >> 8) & 0xff00) |   // move byte 2 to byte 1
+        ((input << 24) & 0xff000000); // byte 0 to byte 3;
 
-return output;
+    return output;
 }
 
 t_header ReadHeader(uint8_t* buffer) {
@@ -187,18 +202,54 @@ void WritePCS(t_PCS pcs, uint8_t* buffer) {
         size_t bufferStartIdx = 11 + (size_t)i * 8;
 
         *((uint16_t*)(&buffer[bufferStartIdx + 0])) = swapEndianness(pcs.compositionObject[i].objectID);
-        *((uint8_t*)(&buffer[bufferStartIdx + 2])) =                 pcs.compositionObject[i].windowID;
-        *((uint8_t*)(&buffer[bufferStartIdx + 3])) =                 pcs.compositionObject[i].objectCroppedFlag;
+        *((uint8_t*)(&buffer[bufferStartIdx + 2])) = pcs.compositionObject[i].windowID;
+        *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pcs.compositionObject[i].objectCroppedFlag;
         *((uint16_t*)(&buffer[bufferStartIdx + 4])) = swapEndianness(pcs.compositionObject[i].objectHorPos);
         *((uint16_t*)(&buffer[bufferStartIdx + 6])) = swapEndianness(pcs.compositionObject[i].objectVerPos);
     }
-    
+
     /*
     *((uint16_t*)(&buffer[bufferStartIdx + 8])) = swapEndianness(pcs.compositionObject.objCropHorPos);
     *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject.objCropVerPos);
     *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject.objCropWidth);
     *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject.objCropHeight);
     */
+}
+
+t_PDS ReadPDS(uint8_t* buffer, size_t segment_size){
+    t_PDS pds;
+
+    pds.paletteID            = *(uint8_t*)&buffer[0];
+    pds.paletteVersionNumber = *(uint8_t*)&buffer[1];
+    pds.paletteNum           = (segment_size - 2) / 5;
+
+    for (int i = 0; i < pds.paletteNum; i++) {
+        size_t bufferStartIdx = 2 + (size_t)i * 5;
+
+        pds.palette[i].paletteEntryID  = *(uint8_t*)&buffer[bufferStartIdx + 0];
+        pds.palette[i].paletteY        = *(uint8_t*)&buffer[bufferStartIdx + 1];
+        pds.palette[i].paletteCb       = *(uint8_t*)&buffer[bufferStartIdx + 2];
+        pds.palette[i].paletteCr       = *(uint8_t*)&buffer[bufferStartIdx + 3];
+        pds.palette[i].paletteA        = *(uint8_t*)&buffer[bufferStartIdx + 4];
+    }
+
+    return pds;
+}
+
+void WritePDS(t_PDS pds, uint8_t* buffer) {
+
+    *((uint8_t*)(&buffer[0])) = pds.paletteID;
+    *((uint8_t*)(&buffer[1])) = pds.paletteVersionNumber;
+
+    for (int i = 0; i < pds.paletteNum; i++) {
+        size_t bufferStartIdx = 2 + (size_t)i * 5;
+
+        *((uint8_t*)(&buffer[bufferStartIdx + 0])) = pds.palette[i].paletteEntryID;
+        *((uint8_t*)(&buffer[bufferStartIdx + 1])) = pds.palette[i].paletteY;
+        *((uint8_t*)(&buffer[bufferStartIdx + 2])) = pds.palette[i].paletteCb;
+        *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pds.palette[i].paletteCr;
+        *((uint8_t*)(&buffer[bufferStartIdx + 4])) = pds.palette[i].paletteA;
+    }
 }
 
 bool rectIsContained(t_rect container, t_rect window) {
@@ -216,7 +267,7 @@ bool rectIsContained(t_rect container, t_rect window) {
     }
 }
 
-t_timestamp PTStoTimestamp(uint32_t pts){
+t_timestamp PTStoTimestamp(uint32_t pts) {
     t_timestamp res;
 
     res.ms = ((int)floor((float)pts / PTS_MULT));
@@ -231,7 +282,7 @@ t_timestamp PTStoTimestamp(uint32_t pts){
     return res;
 }
 
-bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& resync, bool& addZero) {
+bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& resync, bool& addZero, double& tonemap) {
     delay = 0;
     crop = {};
     resync = 1;
@@ -240,24 +291,24 @@ bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& r
     if (argc == 4) {
         //backward compatibility
         delay = (int32_t)round(atof(argv[3]) * PTS_MULT);
-        if(delay != 0){
+        if (delay != 0) {
             printf("Running in backwards-compatibility mode\n");
             return true;
         }
     }
 
-    while(i < argc) {
+    while (i < argc) {
         std::string command = argv[i];
         std::transform(command.begin(), command.end(), command.begin(), ::tolower);
-        
+
         if (command == "delay") {
-            delay = (int32_t)round(atof(argv[i+1]) * PTS_MULT);
+            delay = (int32_t)round(atof(argv[i + 1]) * PTS_MULT);
             i += 2;
         }
         else if (command == "crop") {
-            crop.left   = atoi(argv[i + 1]);
-            crop.top    = atoi(argv[i + 2]);
-            crop.right  = atoi(argv[i + 3]);
+            crop.left = atoi(argv[i + 1]);
+            crop.top = atoi(argv[i + 2]);
+            crop.right = atoi(argv[i + 3]);
             crop.bottom = atoi(argv[i + 4]);
             i += 5;
         }
@@ -282,6 +333,10 @@ bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& r
             addZero = true;
             i += 1;
         }
+        else if (command == "tonemap") {
+            tonemap = atof(argv[i + 1]);
+            i += 2;
+        }
         else {
             return false;
         }
@@ -296,8 +351,8 @@ int main(int32_t argc, char** argv)
     t_header header;
 
 
-    if(argc < 4){
-        printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero]\r\n");
+    if (argc < 4) {
+        printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>]\r\n");
         printf("delay and resync command are executed in the order supplied\r\n");
         return 0;
     }
@@ -305,8 +360,9 @@ int main(int32_t argc, char** argv)
     t_crop crop = {};
     double resync = 1;
     bool addZero = false;
+    double tonemap = 1;
 
-    if (!ParseCMD(argc, argv, delay, crop, resync, addZero)) {
+    if (!ParseCMD(argc, argv, delay, crop, resync, addZero, tonemap)) {
         printf("Error parsing input\r\n");
         return -1;
     }
@@ -314,14 +370,15 @@ int main(int32_t argc, char** argv)
     bool doDelay = delay != 0;
     bool doCrop = (crop.left + crop.top + crop.right + crop.bottom) > 0;
     bool doResync = resync != 1;
+    bool doTonemap = tonemap != 1;
 
     FILE* input = fopen(argv[1], "rb");
-    if(input == NULL){
+    if (input == NULL) {
         printf("Unable to open input file!");
         return -1;
     }
     FILE* output = fopen(argv[2], "wb");
-    if(output == NULL){
+    if (output == NULL) {
         printf("Unable to open output file!");
         fclose(input);
         return -1;
@@ -329,7 +386,7 @@ int main(int32_t argc, char** argv)
 
     fseek(input, 0, SEEK_END);
     size = ftell(input);
-    if(size != 0){
+    if (size != 0) {
         fseek(input, 0, SEEK_SET);
 
         uint8_t* buffer = (uint8_t*)calloc(1, size);
@@ -338,20 +395,21 @@ int main(int32_t argc, char** argv)
         }
 
         fread(buffer, size, 1, input);
-        if(doDelay || doCrop || doResync || addZero){
+        if (doDelay || doCrop || doResync || addZero || doTonemap) {
             size_t start = 0;
 
             t_rect screenRect = {};
 
             t_WDS wds = {};
             t_PCS pcs = {};
+            t_PDS pds = {};
 
             size_t offesetCurrPCS = 0;
             bool fixPCS = false;
 
-            for(start = 0; start < size; start = start + HEADER_SIZE + header.dataLength){
+            for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
                 header = ReadHeader(&buffer[start]);
-                if (header.header != 0x5047){
+                if (header.header != 0x5047) {
                     printf("Correct header not found at position %zd, abort!", start);
                     fclose(input);
                     fclose(output);
@@ -372,6 +430,20 @@ int main(int32_t argc, char** argv)
                 switch (header.segmentType) {
                 case 0x14:
                     //printf("PDS\r\n");
+                    if (doTonemap) {
+                        pds = ReadPDS(&buffer[start + HEADER_SIZE], header.dataLength);
+
+                        for (int i = 0; i < pds.paletteNum; i++) {
+                            //convert Y from TV level (16-235) to full range
+                            double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
+                            double tonemappedY = expandedY * tonemap;
+                            double clampedY    = std::min(1.0, std::max(tonemappedY, 0.0));
+                            double newY        = round((clampedY * (235.0 - 16.0)) + 16.0);
+                            pds.palette[i].paletteY = (uint8_t)newY;
+                        }
+
+                        WritePDS(pds, &buffer[start + HEADER_SIZE]);
+                    }
                     break;
                 case 0x15:
                     //printf("ODS\r\n");
@@ -417,7 +489,7 @@ int main(int32_t argc, char** argv)
                         }
 
                         if (addZero) {
-                            if (pcs.compositionNumber == 0){
+                            if (pcs.compositionNumber == 0) {
                                 uint8_t zeroBuffer[60];
                                 uint8_t pos = 0;
                                 t_header zeroHeader(header);
@@ -444,7 +516,7 @@ int main(int32_t argc, char** argv)
                                 zeroWds.windows[0].WindowsVerPos = 0;
                                 zeroWds.windows[0].WindowsWidth = 0;
                                 zeroWds.windows[0].WindowsHeight = 0;
-                                WriteWDS(zeroWds,&zeroBuffer[pos]);
+                                WriteWDS(zeroWds, &zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
                                 zeroHeader.segmentType = 0x80; // END
@@ -465,7 +537,7 @@ int main(int32_t argc, char** argv)
                     //printf("WDS\r\n");
                     fixPCS = false;
                     if (doCrop) {
-                        wds = ReadWDS(&buffer[start+ HEADER_SIZE]);
+                        wds = ReadWDS(&buffer[start + HEADER_SIZE]);
 
                         if (wds.numberOfWindows > 1) {
                             t_timestamp timestamp = PTStoTimestamp(header.pts1);
@@ -482,7 +554,7 @@ int main(int32_t argc, char** argv)
                             wndRect.width = wds.windows[i].WindowsWidth;
                             wndRect.height = wds.windows[i].WindowsHeight;
 
-                            if (   wndRect.width  > screenRect.width
+                            if (wndRect.width > screenRect.width
                                 || wndRect.height > screenRect.height) {
                                 t_timestamp timestamp = PTStoTimestamp(header.pts1);
                                 printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
@@ -492,7 +564,8 @@ int main(int32_t argc, char** argv)
                                 pcs.height = wndRect.height;
                                 fixPCS = true;
                                 */
-                            } else {
+                            }
+                            else {
                                 if (!rectIsContained(screenRect, wndRect)) {
                                     t_timestamp timestamp = PTStoTimestamp(header.pts1);
                                     printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);

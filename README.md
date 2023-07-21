@@ -2,7 +2,7 @@
 SupMover - Shift timings and Screen Area of PGS/Sup subtitle
 
 # Usage
-`SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)]`
+`SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero]`
 
 `SupMover (<input.sup> <output.sup> <ms>)` old syntax, kept for backward compatibility
 
@@ -17,6 +17,8 @@ SupMover - Shift timings and Screen Area of PGS/Sup subtitle
   * Crop functionality is not exstensivelly tested when multiple Composition Object or Windows are present or when the windows are is outside the new screen area, a warning is issued if that's the case and i strongly advise to check the resulting subtitle with a video player, also handling of the Object Cropped flag and windows area bigger than the new screen area is not implemented, a warning is issued if needed
 * delay + resync
   * If both modes are selected the delay will be adjusted if it comes before the resync parameter, for example if the program is launched with `delay 1000 resync 1.001` it will be internally adjusted to 1001ms, instead if it's launched with `resync 1.001 delay 1000` it will not
+* add_zero
+  * Some media players (especially Plex) don't correctly sync `*.sup` subtitles.  They seem to ignore any delay before the first 'display set'.  This option adds a dummy 'display set' at time 0 so subsequent timestamps are correctly interpreted.
  
 # Build instruction
 ```

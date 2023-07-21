@@ -90,6 +90,14 @@ struct t_PDS {
     uint8_t paletteNum; //not in format, only used internally
 };
 
+struct t_cmd {
+    int32_t delay = 0;
+    t_crop crop = {};
+    double resync = 1;
+    bool addZero = false;
+    double tonemap = 1;
+};
+
 uint16_t swapEndianness(uint16_t input) {
     uint16_t output;
 
@@ -216,21 +224,21 @@ void WritePCS(t_PCS pcs, uint8_t* buffer) {
     */
 }
 
-t_PDS ReadPDS(uint8_t* buffer, size_t segment_size){
+t_PDS ReadPDS(uint8_t* buffer, size_t segment_size) {
     t_PDS pds;
 
-    pds.paletteID            = *(uint8_t*)&buffer[0];
+    pds.paletteID = *(uint8_t*)&buffer[0];
     pds.paletteVersionNumber = *(uint8_t*)&buffer[1];
-    pds.paletteNum           = (segment_size - 2) / 5;
+    pds.paletteNum = (segment_size - 2) / 5;
 
     for (int i = 0; i < pds.paletteNum; i++) {
         size_t bufferStartIdx = 2 + (size_t)i * 5;
 
-        pds.palette[i].paletteEntryID  = *(uint8_t*)&buffer[bufferStartIdx + 0];
-        pds.palette[i].paletteY        = *(uint8_t*)&buffer[bufferStartIdx + 1];
-        pds.palette[i].paletteCb       = *(uint8_t*)&buffer[bufferStartIdx + 2];
-        pds.palette[i].paletteCr       = *(uint8_t*)&buffer[bufferStartIdx + 3];
-        pds.palette[i].paletteA        = *(uint8_t*)&buffer[bufferStartIdx + 4];
+        pds.palette[i].paletteEntryID = *(uint8_t*)&buffer[bufferStartIdx + 0];
+        pds.palette[i].paletteY = *(uint8_t*)&buffer[bufferStartIdx + 1];
+        pds.palette[i].paletteCb = *(uint8_t*)&buffer[bufferStartIdx + 2];
+        pds.palette[i].paletteCr = *(uint8_t*)&buffer[bufferStartIdx + 3];
+        pds.palette[i].paletteA = *(uint8_t*)&buffer[bufferStartIdx + 4];
     }
 
     return pds;
@@ -282,16 +290,17 @@ t_timestamp PTStoTimestamp(uint32_t pts) {
     return res;
 }
 
-bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& resync, bool& addZero, double& tonemap) {
-    delay = 0;
-    crop = {};
-    resync = 1;
-    addZero = false;
+bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
+    cmd.delay = 0;
+    cmd.crop = {};
+    cmd.resync = 1;
+    cmd.addZero = false;
+    cmd.tonemap = 1;
     int i = 3;
     if (argc == 4) {
         //backward compatibility
-        delay = (int32_t)round(atof(argv[3]) * PTS_MULT);
-        if (delay != 0) {
+        cmd.delay = (int32_t)round(atof(argv[3]) * PTS_MULT);
+        if (cmd.delay != 0) {
             printf("Running in backwards-compatibility mode\n");
             return true;
         }
@@ -302,14 +311,14 @@ bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& r
         std::transform(command.begin(), command.end(), command.begin(), ::tolower);
 
         if (command == "delay") {
-            delay = (int32_t)round(atof(argv[i + 1]) * PTS_MULT);
+            cmd.delay = (int32_t)round(atof(argv[i + 1]) * PTS_MULT);
             i += 2;
         }
         else if (command == "crop") {
-            crop.left = atoi(argv[i + 1]);
-            crop.top = atoi(argv[i + 2]);
-            crop.right = atoi(argv[i + 3]);
-            crop.bottom = atoi(argv[i + 4]);
+            cmd.crop.left = atoi(argv[i + 1]);
+            cmd.crop.top = atoi(argv[i + 2]);
+            cmd.crop.right = atoi(argv[i + 3]);
+            cmd.crop.bottom = atoi(argv[i + 4]);
             i += 5;
         }
         else if (command == "resync") {
@@ -319,22 +328,22 @@ bool ParseCMD(int32_t argc, char** argv, int32_t& delay, t_crop& crop, double& r
                 double num = atof(strFactor.substr(0, idx).c_str());
                 double den = atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
 
-                resync = num / den;
+                cmd.resync = num / den;
             }
             else {
-                resync = atof(argv[i + 1]);
+                cmd.resync = atof(argv[i + 1]);
             }
 
-            delay = (int32_t)round(((double)delay * resync));
+            cmd.delay = (int32_t)round(((double)cmd.delay * cmd.resync));
 
             i += 2;
         }
         else if (command == "add_zero") {
-            addZero = true;
+            cmd.addZero = true;
             i += 1;
         }
         else if (command == "tonemap") {
-            tonemap = atof(argv[i + 1]);
+            cmd.tonemap = atof(argv[i + 1]);
             i += 2;
         }
         else {
@@ -356,21 +365,20 @@ int main(int32_t argc, char** argv)
         printf("delay and resync command are executed in the order supplied\r\n");
         return 0;
     }
-    int32_t delay = {};
-    t_crop crop = {};
-    double resync = 1;
-    bool addZero = false;
-    double tonemap = 1;
+    t_cmd cmd = {};
 
-    if (!ParseCMD(argc, argv, delay, crop, resync, addZero, tonemap)) {
+    if (!ParseCMD(argc, argv, cmd)) {
         printf("Error parsing input\r\n");
         return -1;
     }
 
-    bool doDelay = delay != 0;
-    bool doCrop = (crop.left + crop.top + crop.right + crop.bottom) > 0;
-    bool doResync = resync != 1;
-    bool doTonemap = tonemap != 1;
+
+    bool doDelay = cmd.delay != 0;
+    bool doCrop = (cmd.crop.left + cmd.crop.top + cmd.crop.right + cmd.crop.bottom) > 0;
+    bool doResync = cmd.resync != 1;
+    bool doTonemap = cmd.tonemap != 1;
+
+    bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap;
 
     FILE* input = fopen(argv[1], "rb");
     if (input == NULL) {
@@ -395,7 +403,7 @@ int main(int32_t argc, char** argv)
         }
 
         fread(buffer, size, 1, input);
-        if (doDelay || doCrop || doResync || addZero || doTonemap) {
+        if (doSomething) {
             size_t start = 0;
 
             t_rect screenRect = {};
@@ -417,10 +425,10 @@ int main(int32_t argc, char** argv)
                 }
 
                 if (doResync) {
-                    header.pts1 = (uint32_t)round((double)header.pts1 * resync);
+                    header.pts1 = (uint32_t)round((double)header.pts1 * cmd.resync);
                 }
                 if (doDelay) {
-                    header.pts1 = header.pts1 + delay;
+                    header.pts1 = header.pts1 + cmd.delay;
                 }
 
                 if (doResync || doDelay) {
@@ -435,10 +443,10 @@ int main(int32_t argc, char** argv)
 
                         for (int i = 0; i < pds.paletteNum; i++) {
                             //convert Y from TV level (16-235) to full range
-                            double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
-                            double tonemappedY = expandedY * tonemap;
-                            double clampedY    = std::min(1.0, std::max(tonemappedY, 0.0));
-                            double newY        = round((clampedY * (235.0 - 16.0)) + 16.0);
+                            double expandedY = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
+                            double tonemappedY = expandedY * cmd.tonemap;
+                            double clampedY = std::min(1.0, std::max(tonemappedY, 0.0));
+                            double newY = round((clampedY * (235.0 - 16.0)) + 16.0);
                             pds.palette[i].paletteY = (uint8_t)newY;
                         }
 
@@ -450,14 +458,14 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x16:
                     //printf("PCS\r\n");
-                    if (doCrop || addZero) {
+                    if (doCrop || cmd.addZero) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offesetCurrPCS = start;
 
-                        screenRect.x = 0 + crop.left;
-                        screenRect.y = 0 + crop.top;
-                        screenRect.width = pcs.width - (crop.left + crop.right);
-                        screenRect.height = pcs.height - (crop.top + crop.bottom);
+                        screenRect.x = 0 + cmd.crop.left;
+                        screenRect.y = 0 + cmd.crop.top;
+                        screenRect.width = pcs.width - (cmd.crop.left + cmd.crop.right);
+                        screenRect.height = pcs.height - (cmd.crop.top + cmd.crop.bottom);
 
                         pcs.width = screenRect.width;
                         pcs.height = screenRect.height;
@@ -473,22 +481,22 @@ int main(int32_t argc, char** argv)
                                 printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                             }
 
-                            if (crop.left > pcs.compositionObject[i].objectHorPos) {
+                            if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
                                 pcs.compositionObject[i].objectHorPos = 0;
                             }
                             else {
-                                pcs.compositionObject[i].objectHorPos -= crop.left;
+                                pcs.compositionObject[i].objectHorPos -= cmd.crop.left;
                             }
 
-                            if (crop.top > pcs.compositionObject[i].objectVerPos) {
+                            if (cmd.crop.top > pcs.compositionObject[i].objectVerPos) {
                                 pcs.compositionObject[i].objectVerPos = 0;
                             }
                             else {
-                                pcs.compositionObject[i].objectVerPos -= crop.top;
+                                pcs.compositionObject[i].objectVerPos -= cmd.crop.top;
                             }
                         }
 
-                        if (addZero) {
+                        if (cmd.addZero) {
                             if (pcs.compositionNumber == 0) {
                                 uint8_t zeroBuffer[60];
                                 uint8_t pos = 0;
@@ -588,18 +596,18 @@ int main(int32_t argc, char** argv)
                                 }
                             }
 
-                            if (crop.left > wds.windows[i].WindowsHorPos) {
+                            if (cmd.crop.left > wds.windows[i].WindowsHorPos) {
                                 wds.windows[i].WindowsHorPos = 0;
                             }
                             else {
-                                wds.windows[i].WindowsHorPos -= (crop.left + corrHor);
+                                wds.windows[i].WindowsHorPos -= (cmd.crop.left + corrHor);
                             }
 
-                            if (crop.top > wds.windows[i].WindowsVerPos) {
+                            if (cmd.crop.top > wds.windows[i].WindowsVerPos) {
                                 wds.windows[i].WindowsVerPos = 0;
                             }
                             else {
-                                wds.windows[i].WindowsVerPos -= (crop.top + corrVer);
+                                wds.windows[i].WindowsVerPos -= (cmd.crop.top + corrVer);
                             }
 
                             if (corrVer != 0) {

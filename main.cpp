@@ -462,37 +462,39 @@ int main(int32_t argc, char** argv)
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offesetCurrPCS = start;
 
-                        screenRect.x = 0 + cmd.crop.left;
-                        screenRect.y = 0 + cmd.crop.top;
-                        screenRect.width = pcs.width - (cmd.crop.left + cmd.crop.right);
-                        screenRect.height = pcs.height - (cmd.crop.top + cmd.crop.bottom);
+                        if (doCrop) {
+                            screenRect.x = 0 + cmd.crop.left;
+                            screenRect.y = 0 + cmd.crop.top;
+                            screenRect.width = pcs.width - (cmd.crop.left + cmd.crop.right);
+                            screenRect.height = pcs.height - (cmd.crop.top + cmd.crop.bottom);
 
-                        pcs.width = screenRect.width;
-                        pcs.height = screenRect.height;
+                            pcs.width = screenRect.width;
+                            pcs.height = screenRect.height;
 
-                        if (pcs.numCompositionObject > 1) {
-                            t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                            printf("Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
-                        }
-
-                        for (int i = 0; i < pcs.numCompositionObject; i++) {
-                            if (pcs.compositionObject[i].objectCroppedFlag == 0x40) {
+                            if (pcs.numCompositionObject > 1) {
                                 t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                printf("Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                             }
 
-                            if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
-                                pcs.compositionObject[i].objectHorPos = 0;
-                            }
-                            else {
-                                pcs.compositionObject[i].objectHorPos -= cmd.crop.left;
-                            }
+                            for (int i = 0; i < pcs.numCompositionObject; i++) {
+                                if (pcs.compositionObject[i].objectCroppedFlag == 0x40) {
+                                    t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                                    printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                }
 
-                            if (cmd.crop.top > pcs.compositionObject[i].objectVerPos) {
-                                pcs.compositionObject[i].objectVerPos = 0;
-                            }
-                            else {
-                                pcs.compositionObject[i].objectVerPos -= cmd.crop.top;
+                                if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
+                                    pcs.compositionObject[i].objectHorPos = 0;
+                                }
+                                else {
+                                    pcs.compositionObject[i].objectHorPos -= cmd.crop.left;
+                                }
+
+                                if (cmd.crop.top > pcs.compositionObject[i].objectVerPos) {
+                                    pcs.compositionObject[i].objectVerPos = 0;
+                                }
+                                else {
+                                    pcs.compositionObject[i].objectVerPos -= cmd.crop.top;
+                                }
                             }
                         }
 

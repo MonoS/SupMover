@@ -2,12 +2,13 @@
 #include <cstdio>
 #include <math.h>
 #include <algorithm>
+#include <vector>
 
 //Documentation: http://blog.thescorpius.com/index.php/2017/07/15/presentation-graphic-stream-sup-files-bluray-subtitle-format/
 
 //using namespace std;
 
-double const PTS_MULT = 90.0f;
+double const MS_TO_PTS_MULT = 90.0f;
 size_t const HEADER_SIZE = 13;
 
 struct t_rect {
@@ -29,6 +30,49 @@ struct t_crop {
     uint16_t top;
     uint16_t right;
     uint16_t bottom;
+};
+
+enum e_cutMergeFormat : uint8_t {
+    secut = 0,       //"[1000-2000] [3000-4000]" both inclusive
+    vapoursynth = 1, //"[1000:2001] [3000:4001]" start inclusive, end exclusive
+    avisynth = 2,    //"(1000,2000) (3000,4000)" both inclusive
+    remap = 3        //"[1000 2000] [3000 4000]" both inclusive
+};
+
+enum e_cutMergeTimeMode : uint8_t {
+    ms = 0,
+    frame = 1,
+    timestamp = 2
+};
+
+enum e_cutMergeFixMode : uint8_t {
+    del = 0, //delete section if not fully contained
+    cut = 0  //cut begin and/or end to match current section
+};
+
+struct t_cutMergeSection {
+    uint32_t begin;
+    uint32_t end;
+    uint32_t delay_until;
+};
+
+bool CompareCutMergeSection(t_cutMergeSection a, t_cutMergeSection b) {
+    return (a.begin < b.begin);
+}
+
+struct t_compositionNumberToSaveInfo {
+    uint16_t compositionNumber;
+    size_t sectionIdx;
+};
+
+struct t_cutMerge {
+    bool doCutMerge = false;
+    e_cutMergeFormat format;
+    e_cutMergeTimeMode timeMode;
+    e_cutMergeFixMode fixMode;
+    double fps;
+    std::string list;
+    std::vector<t_cutMergeSection> section;
 };
 
 struct t_header {
@@ -96,6 +140,7 @@ struct t_cmd {
     double resync = 1;
     bool addZero = false;
     double tonemap = 1;
+    t_cutMerge cutMerge = {};
 };
 
 uint16_t swapEndianness(uint16_t input) {
@@ -260,6 +305,10 @@ void WritePDS(t_PDS pds, uint8_t* buffer) {
     }
 }
 
+void toLower(std::string& str) {
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+}
+
 bool rectIsContained(t_rect container, t_rect window) {
     if ((window.x + window.width) < (container.x + container.width)
         && (window.x) > (container.x)
@@ -278,7 +327,7 @@ bool rectIsContained(t_rect container, t_rect window) {
 t_timestamp PTStoTimestamp(uint32_t pts) {
     t_timestamp res;
 
-    res.ms = ((int)floor((float)pts / PTS_MULT));
+    res.ms = ((int)floor((float)pts / MS_TO_PTS_MULT));
     res.ss = res.ms / 1000;
     res.mm = res.ss / 60;
     res.hh = res.mm / 60;
@@ -290,16 +339,175 @@ t_timestamp PTStoTimestamp(uint32_t pts) {
     return res;
 }
 
+int timestampToMs(char* timestamp) {
+    int tokenRead;
+    int hh, mm, ss, ms;
+
+    tokenRead = std::sscanf(timestamp, "%d:%d:%d.%d", &hh, &mm, &ss, &ms);
+    if (tokenRead != 4) {
+        return -1;
+    }
+
+    return ((((hh * 60 * 60) + (mm * 60) + ss) * 1000) + ms);
+
+}
+
+int SearchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS, uint32_t endPTS, e_cutMergeFixMode fixMode) {
+    for (int i = 0; i < section.size(); i++) {
+        t_cutMergeSection currSection = section[i];
+        int found = 0;
+
+        if (currSection.begin <= beginPTS
+            && currSection.end >= beginPTS) {
+            found++;
+        }
+
+        if (currSection.begin <= endPTS
+            && currSection.end >= endPTS) {
+            found++;
+        }
+
+        if (currSection.begin <= beginPTS
+            && currSection.end >= endPTS) {
+            found += 2;
+        }
+
+        if (fixMode == e_cutMergeFixMode::cut
+            && found >= 1) {
+            return i;
+        }
+        if (fixMode == e_cutMergeFixMode::del
+            && found >= 2) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+bool parseCutMerge(t_cutMerge* cutMerge) {
+    std::string pattern;
+
+    switch (cutMerge->format)
+    {
+    case e_cutMergeFormat::secut:
+    {
+        pattern = "[%[0123456789:.]-%[0123456789:.]]%n";
+        break;
+    }
+    case e_cutMergeFormat::vapoursynth:
+    {
+        pattern = "[%[0123456789]:%[0123456789]]%n";
+        break;
+    }
+    case e_cutMergeFormat::avisynth:
+    {
+        pattern = "(%[0123456789:.],%[0123456789:.])%n";
+        break;
+    }
+    case e_cutMergeFormat::remap:
+    {
+        pattern = "[%[0123456789:.] %[0123456789:.]]%n";
+        break;
+    }
+    default:
+        break;
+    }
+
+    char strBeg[1024], strEnd[1024];
+    int beg, end;
+    int charRead, tokenRead;
+
+    std::string list = cutMerge->list;
+
+    do {
+        tokenRead = std::sscanf(list.c_str(), pattern.c_str(), strBeg, strEnd, &charRead);
+        if (tokenRead != 2) {
+            return false;
+        }
+
+        t_cutMergeSection section = {};
+        switch (cutMerge->timeMode)
+        {
+        case e_cutMergeTimeMode::ms:
+        {
+            beg = atoi(strBeg);
+            end = atoi(strEnd);
+
+            section.begin = (uint32_t)round(beg * MS_TO_PTS_MULT);
+            section.end = (uint32_t)round(end * MS_TO_PTS_MULT);
+            break;
+        }
+        case e_cutMergeTimeMode::frame:
+        {
+            beg = atoi(strBeg);
+            end = atoi(strEnd);
+
+            if (cutMerge->format == e_cutMergeFormat::vapoursynth) {
+                end--;
+            }
+
+            section.begin = (uint32_t)round(((double)beg) / cutMerge->fps * MS_TO_PTS_MULT);
+            section.end = (uint32_t)round(((double)end) / cutMerge->fps * MS_TO_PTS_MULT);
+            break;
+        }
+        case e_cutMergeTimeMode::timestamp:
+        {
+            beg = timestampToMs(strBeg);
+            end = timestampToMs(strEnd);
+            if (beg == -1) {
+                printf("Timestamp %s is invalid\n", strBeg);
+                return false;
+            }
+            if (beg == -1) {
+                printf("Timestamp %s is invalid\n", strEnd);
+                return false;
+            }
+
+            section.begin = (uint32_t)round(beg * MS_TO_PTS_MULT);
+            section.end = (uint32_t)round(end * MS_TO_PTS_MULT);
+            break;
+        }
+        default:
+            break;
+        }
+
+        cutMerge->section.push_back(section);
+
+        if (charRead + 1 < list.length()) {
+            list = list.substr(charRead + 1, list.length());
+        }
+        else {
+            list.clear();
+        }
+    } while (list.length() > 0);
+
+    sort(cutMerge->section.begin(), cutMerge->section.end(), CompareCutMergeSection);
+
+    int32_t runningDelay = 0;
+    t_cutMergeSection prec = {};
+    for (int i = 0; i < cutMerge->section.size(); i++) {
+        cutMerge->section[i].delay_until = runningDelay + cutMerge->section[i].begin;
+        runningDelay += (cutMerge->section[i].begin - cutMerge->section[i].end);
+    }
+
+    return true;
+
+}
+
 bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     cmd.delay = 0;
     cmd.crop = {};
     cmd.resync = 1;
     cmd.addZero = false;
     cmd.tonemap = 1;
+
     int i = 3;
+
+    bool doSubcommand = false;
     if (argc == 4) {
         //backward compatibility
-        cmd.delay = (int32_t)round(atof(argv[3]) * PTS_MULT);
+        cmd.delay = (int32_t)round(atof(argv[3]) * MS_TO_PTS_MULT);
         if (cmd.delay != 0) {
             printf("Running in backwards-compatibility mode\n");
             return true;
@@ -308,11 +516,21 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
     while (i < argc) {
         std::string command = argv[i];
-        std::transform(command.begin(), command.end(), command.begin(), ::tolower);
+        toLower(command);
 
         if (command == "delay") {
-            cmd.delay = (int32_t)round(atof(argv[i + 1]) * PTS_MULT);
+            cmd.delay = (int32_t)round(atof(argv[i + 1]) * MS_TO_PTS_MULT);
             i += 2;
+
+            if (cmd.cutMerge.doCutMerge) {
+                printf("Delay parameter will NOT be applied to Cut&Merge\n");
+                /*
+                for (int i = 0; i < cmd.cutMerge.section.size(); i++) {
+                    cmd.cutMerge.section[i].begin += cmd.delay;
+                    cmd.cutMerge.section[i].end   += cmd.delay;
+                }
+                */
+            }
         }
         else if (command == "crop") {
             cmd.crop.left = atoi(argv[i + 1]);
@@ -336,6 +554,16 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             cmd.delay = (int32_t)round(((double)cmd.delay * cmd.resync));
 
+            if (cmd.cutMerge.doCutMerge) {
+                printf("Resync parameter will NOT be applied to Cut&Merge\n");
+                /*
+                for (int i = 0; i < cmd.cutMerge.section.size(); i++) {
+                    cmd.cutMerge.section[i].begin *= cmd.resync;
+                    cmd.cutMerge.section[i].end   *= cmd.resync;
+                }
+                */
+            }
+
             i += 2;
         }
         else if (command == "add_zero") {
@@ -346,7 +574,98 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             cmd.tonemap = atof(argv[i + 1]);
             i += 2;
         }
+        else if (command == "cut_merge") {
+            cmd.cutMerge.doCutMerge = true;
+            i++;
+        }
+        else if (command == "format") {
+            std::string formatMode = argv[i + 1];
+            toLower(formatMode);
+
+            if (formatMode == "secut") {
+                cmd.cutMerge.format = e_cutMergeFormat::secut;
+            }
+            else if (formatMode == "vapoursynth" || formatMode == "vs") {
+                cmd.cutMerge.format = e_cutMergeFormat::vapoursynth;
+            }
+            else if (formatMode == "avisynth" || formatMode == "avs") {
+                cmd.cutMerge.format = e_cutMergeFormat::avisynth;
+            }
+            else if (formatMode == "remap") {
+                cmd.cutMerge.format = e_cutMergeFormat::remap;
+            }
+            else {
+                return false;
+            }
+            i += 2;
+        }
+        else if (command == "list") {
+            std::string list = argv[i + 1];
+            toLower(list);
+
+            cmd.cutMerge.list = list;
+
+            i += 2;
+        }
+        else if (command == "timemode") {
+            std::string timemode = argv[i + 1];
+            toLower(timemode);
+
+            if (timemode == "ms") {
+                cmd.cutMerge.timeMode = e_cutMergeTimeMode::ms;
+            }
+            else if (timemode == "frame") {
+                cmd.cutMerge.timeMode = e_cutMergeTimeMode::frame;
+                std::string strFactor = argv[i + 2];
+
+                size_t idx = strFactor.find("/");
+                if (idx != SIZE_MAX) {
+                    double num = atof(strFactor.substr(0, idx).c_str());
+                    double den = atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
+
+                    cmd.cutMerge.fps = num / den;
+                }
+                else {
+                    cmd.cutMerge.fps = atof(argv[i + 2]);
+                }
+                i++;
+            }
+            else if (timemode == "timestamp") {
+                cmd.cutMerge.timeMode = e_cutMergeTimeMode::timestamp;
+            }
+            else {
+                return false;
+            }
+
+            i += 2;
+        }
+        else if (command == "fixmode") {
+            std::string fixmode = argv[i + 1];
+            toLower(fixmode);
+
+            if (fixmode == "cut") {
+                cmd.cutMerge.fixMode = e_cutMergeFixMode::cut;
+            }
+            else if (fixmode == "delete" || fixmode == "del") {
+                cmd.cutMerge.fixMode = e_cutMergeFixMode::del;
+            }
+
+            i += 2;
+        }
         else {
+            return false;
+        }
+    }
+
+    if (cmd.cutMerge.doCutMerge) {
+        if (cmd.cutMerge.format == e_cutMergeFormat::vapoursynth
+            && cmd.cutMerge.timeMode == e_cutMergeTimeMode::timestamp) {
+            printf("Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
+
+            return false;
+        }
+
+        if (!parseCutMerge(&cmd.cutMerge)) {
             return false;
         }
     }
@@ -356,7 +675,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
 int main(int32_t argc, char** argv)
 {
-    size_t size;
+    size_t size, newSize;
     t_header header;
 
 
@@ -378,7 +697,7 @@ int main(int32_t argc, char** argv)
     bool doResync = cmd.resync != 1;
     bool doTonemap = cmd.tonemap != 1;
 
-    bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap;
+    bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
 
     FILE* input = fopen(argv[1], "rb");
     if (input == NULL) {
@@ -393,11 +712,12 @@ int main(int32_t argc, char** argv)
     }
 
     fseek(input, 0, SEEK_END);
-    size = ftell(input);
+    size = newSize = ftell(input);
     if (size != 0) {
         fseek(input, 0, SEEK_SET);
 
         uint8_t* buffer = (uint8_t*)calloc(1, size);
+        uint8_t* newBuffer = buffer;
         if (buffer == NULL) {
             return -1;
         }
@@ -414,6 +734,21 @@ int main(int32_t argc, char** argv)
 
             size_t offesetCurrPCS = 0;
             bool fixPCS = false;
+
+            std::vector<t_compositionNumberToSaveInfo> cutMerge_compositionNumberToSave = {};
+            t_cutMergeSection cutMerge_currentSection = {};
+            size_t cutMerge_offsetBeginCopy = 0;
+            size_t cutMerge_offsetEndCopy = 0;
+            size_t cutMerge_currentNewBufferSize = 0;
+            uint32_t cutMerge_currentBeginPTS = 0;
+            uint32_t cutMerge_currentEndPTS = 0;
+            uint16_t cutMerge_currentCompositionNumber = 0;
+            uint16_t cutMerge_newCompositionNumber = 0;
+            bool cutMerge_foundBegin = false;
+            bool cutMerge_foundEnd = false;
+            bool cutMerge_keepSection = false;
+            uint32_t cutMerge_currentToSaveIdx = 0;
+
 
             for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
                 header = ReadHeader(&buffer[start]);
@@ -458,7 +793,7 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x16:
                     //printf("PCS\r\n");
-                    if (doCrop || cmd.addZero) {
+                    if (doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offesetCurrPCS = start;
 
@@ -536,8 +871,23 @@ int main(int32_t argc, char** argv)
 
                                 printf("Writing %d bytes as first display set\n", pos);
                                 fwrite(zeroBuffer, pos, 1, output);
+
+                                //For Cut&Merge functionality we don't need to save the added segment as it
+                                //is saved in the resulting file automatically
                             }
                             pcs.compositionNumber += 1;
+                        }
+
+                        if (cmd.cutMerge.doCutMerge) {
+                            if (!cutMerge_foundBegin) {
+                                cutMerge_foundBegin = true;
+                                cutMerge_currentBeginPTS = header.pts1;
+                                cutMerge_currentCompositionNumber = pcs.compositionNumber;
+                            }
+                            else if (!cutMerge_foundEnd) {
+                                cutMerge_foundEnd = true;
+                                cutMerge_currentEndPTS = header.pts1;
+                            }
                         }
 
                         WritePCS(pcs, &buffer[start + HEADER_SIZE]);
@@ -631,15 +981,129 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x80:
                     //printf("END\r\n");
+
+                    if (cmd.cutMerge.doCutMerge) {
+                        if (cutMerge_foundEnd) {
+                            cutMerge_foundBegin = false;
+                            cutMerge_foundEnd = false;
+                            int idxFound = SearchSectionByPTS(cmd.cutMerge.section, cutMerge_currentBeginPTS, cutMerge_currentEndPTS, cmd.cutMerge.fixMode);
+                            if (idxFound != -1) {
+                                t_compositionNumberToSaveInfo compositionNumberToSaveInfo = {};
+                                compositionNumberToSaveInfo.compositionNumber = cutMerge_currentCompositionNumber;
+                                compositionNumberToSaveInfo.sectionIdx = idxFound;
+
+                                cutMerge_compositionNumberToSave.push_back(compositionNumberToSaveInfo);
+                            }
+                        }
+                    }
+
                     screenRect = {};
                     pcs = {};
                     wds = {};
                     break;
                 }
             }
+
+            //Cut&Merge functionality is done in two pass as we need the resulting timestamp to do it
+            //and we need to fix all the segment with the sum of all the in-between section delay
+            if (cmd.cutMerge.doCutMerge) {
+                newBuffer = (uint8_t*)calloc(1, size);
+
+                header = {};
+                cutMerge_foundBegin = false;
+                cutMerge_foundEnd = false;
+                cutMerge_keepSection = false;
+                cutMerge_currentToSaveIdx = 0;
+                cutMerge_newCompositionNumber = 0;
+                if (cmd.addZero) {
+                    cutMerge_newCompositionNumber = 1;
+                }
+                for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
+                    if (cutMerge_currentToSaveIdx >= cutMerge_compositionNumberToSave.size()) {
+                        break;
+                    }
+                    header = ReadHeader(&buffer[start]);
+
+                    //For Cut&Merge we only need to handle the header (for the PTS), the PCS (to
+                    //get the compositionNumber) and the END segment (to know when it finished)
+                    if (header.segmentType == 0x16)
+                    {
+                        pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
+                        if (!cutMerge_foundBegin) {
+                            cutMerge_foundBegin = true;
+                            cutMerge_currentBeginPTS = header.pts1;
+                            cutMerge_currentCompositionNumber = pcs.compositionNumber;
+
+                            if (cutMerge_compositionNumberToSave[cutMerge_currentToSaveIdx].compositionNumber == cutMerge_currentCompositionNumber) {
+                                cutMerge_keepSection = true;
+                                cutMerge_offsetBeginCopy = start;
+                                cutMerge_currentSection = cmd.cutMerge.section[cutMerge_compositionNumberToSave[cutMerge_currentToSaveIdx].sectionIdx];
+                                pcs.compositionNumber = cutMerge_newCompositionNumber;
+                                WritePCS(pcs, &buffer[start + HEADER_SIZE]);
+                            }
+                        }
+                        else if (!cutMerge_foundEnd) {
+                            cutMerge_foundEnd = true;
+                            cutMerge_currentEndPTS = header.pts1;
+                            if (cutMerge_keepSection) {
+                                pcs.compositionNumber = cutMerge_newCompositionNumber;
+
+                                WritePCS(pcs, &buffer[start + HEADER_SIZE]);
+                            }
+                        }
+                    }
+
+                    if (cutMerge_keepSection) {
+                        if (!cutMerge_foundEnd) {
+                            if (cutMerge_currentBeginPTS < cutMerge_currentSection.begin) {
+                                header.pts1 = cutMerge_currentSection.begin;
+                            }
+                        }
+                        else {
+                            if (cutMerge_currentEndPTS > cutMerge_currentSection.end) {
+                                header.pts1 = cutMerge_currentSection.end;
+                            }
+                        }
+
+                        header.pts1 -= cutMerge_currentSection.delay_until;
+
+                        WriteHeader(header, &buffer[start]);
+                    }
+
+                    if (header.segmentType == 0x80)
+                    {
+                        if (cutMerge_foundEnd) {
+                            if (cutMerge_keepSection) {
+                                cutMerge_currentToSaveIdx++;
+
+                                cutMerge_offsetEndCopy = start + HEADER_SIZE + header.dataLength;
+
+                                memcpy(&newBuffer[cutMerge_currentNewBufferSize],
+                                    &buffer[cutMerge_offsetBeginCopy],
+                                    (cutMerge_offsetEndCopy - cutMerge_offsetBeginCopy));
+
+                                cutMerge_currentNewBufferSize += (cutMerge_offsetEndCopy - cutMerge_offsetBeginCopy);
+                                cutMerge_newCompositionNumber++;
+                            }
+
+                            cutMerge_foundBegin = false;
+                            cutMerge_foundEnd = false;
+                            cutMerge_keepSection = false;
+                            cutMerge_offsetBeginCopy = -1;
+                            cutMerge_offsetEndCopy = -1;
+
+                        }
+                    }
+                }
+                newSize = cutMerge_currentNewBufferSize;
+            }
+            else {
+                newBuffer = buffer;
+                newSize = size;
+            }
         }
 
-        fwrite(buffer, size, 1, output);
+        fwrite(newBuffer, newSize, 1, output);
     }
 
     fclose(input);

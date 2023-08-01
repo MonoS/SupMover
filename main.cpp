@@ -154,10 +154,10 @@ uint16_t swapEndianness(uint16_t input) {
 uint32_t swapEndianness(uint32_t input) {
     uint32_t output;
 
-    output = ((input >> 24) & 0xff) |   // move byte 3 to byte 0
-        ((input << 8) & 0xff0000) |   // move byte 1 to byte 2
-        ((input >> 8) & 0xff00) |   // move byte 2 to byte 1
-        ((input << 24) & 0xff000000); // byte 0 to byte 3;
+    output = ((input >> 24) & 0xff)     |  // move byte 3 to byte 0
+             ((input << 8 ) & 0xff0000) |  // move byte 1 to byte 2
+             ((input >> 8 ) & 0xff00)   |  // move byte 2 to byte 1
+             ((input << 24) & 0xff000000); // byte 0 to byte 3;
 
     return output;
 }
@@ -165,20 +165,20 @@ uint32_t swapEndianness(uint32_t input) {
 t_header ReadHeader(uint8_t* buffer) {
     t_header header = {};
 
-    header.header = swapEndianness(*(uint16_t*)&buffer[0]);
-    header.pts1 = swapEndianness(*(uint32_t*)&buffer[2]);
-    header.dts = swapEndianness(*(uint32_t*)&buffer[6]);
-    header.segmentType = *(uint8_t*)&buffer[10];
-    header.dataLength = swapEndianness(*(uint16_t*)&buffer[11]);
+    header.header      = swapEndianness(*(uint16_t*)&buffer[0]);
+    header.pts1        = swapEndianness(*(uint32_t*)&buffer[2]);
+    header.dts         = swapEndianness(*(uint32_t*)&buffer[6]);
+    header.segmentType =                *(uint8_t*) &buffer[10];
+    header.dataLength  = swapEndianness(*(uint16_t*)&buffer[11]);
 
     return header;
 }
 
 void WriteHeader(t_header header, uint8_t* buffer) {
-    *((uint16_t*)(&buffer[0])) = swapEndianness(header.header);
-    *((uint32_t*)(&buffer[2])) = swapEndianness(header.pts1);
-    *((uint32_t*)(&buffer[6])) = swapEndianness(header.dts);
-    *((uint8_t*)(&buffer[10])) = header.segmentType;
+    *((uint16_t*)(&buffer[0]))  = swapEndianness(header.header);
+    *((uint32_t*)(&buffer[2]))  = swapEndianness(header.pts1);
+    *((uint32_t*)(&buffer[6]))  = swapEndianness(header.dts);
+    *((uint8_t*) (&buffer[10])) =                header.segmentType;
     *((uint16_t*)(&buffer[11])) = swapEndianness(header.dataLength);
 }
 
@@ -188,10 +188,11 @@ t_WDS ReadWDS(uint8_t* buffer) {
     wds.numberOfWindows = *(uint8_t*)&buffer[0];
     for (int i = 0; i < wds.numberOfWindows; i++) {
         size_t bufferStartIdx = 1 + (size_t)i * 9;
-        wds.windows[i].windowID = *(uint8_t*)&buffer[bufferStartIdx + 0];
+
+        wds.windows[i].windowID      =                *(uint8_t*) &buffer[bufferStartIdx + 0];
         wds.windows[i].WindowsHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 1]);
         wds.windows[i].WindowsVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 3]);
-        wds.windows[i].WindowsWidth = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 5]);
+        wds.windows[i].WindowsWidth  = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 5]);
         wds.windows[i].WindowsHeight = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 7]);
     }
 
@@ -202,7 +203,8 @@ void WriteWDS(t_WDS wds, uint8_t* buffer) {
     *((uint8_t*)(&buffer[0])) = wds.numberOfWindows;
     for (int i = 0; i < wds.numberOfWindows; i++) {
         size_t bufferStartIdx = 1 + (size_t)i * 9;
-        *((uint8_t*)(&buffer[bufferStartIdx + 0])) = wds.windows[i].windowID;
+
+        *((uint8_t*) (&buffer[bufferStartIdx + 0])) =                wds.windows[i].windowID;
         *((uint16_t*)(&buffer[bufferStartIdx + 1])) = swapEndianness(wds.windows[i].WindowsHorPos);
         *((uint16_t*)(&buffer[bufferStartIdx + 3])) = swapEndianness(wds.windows[i].WindowsVerPos);
         *((uint16_t*)(&buffer[bufferStartIdx + 5])) = swapEndianness(wds.windows[i].WindowsWidth);
@@ -213,23 +215,23 @@ void WriteWDS(t_WDS wds, uint8_t* buffer) {
 t_PCS ReadPCS(uint8_t* buffer) {
     t_PCS pcs;
 
-    pcs.width = swapEndianness(*(uint16_t*)&buffer[0]);
-    pcs.height = swapEndianness(*(uint16_t*)&buffer[2]);
-    pcs.frameRate = *(uint8_t*)&buffer[4];
-    pcs.compositionNumber = swapEndianness(*(uint16_t*)&buffer[5]);
-    pcs.compositionState = *(uint8_t*)&buffer[7];
-    pcs.paletteUpdFlag = *(uint8_t*)&buffer[8];
-    pcs.paletteID = *(uint8_t*)&buffer[9];
-    pcs.numCompositionObject = *(uint8_t*)&buffer[10];
+    pcs.width                = swapEndianness(*(uint16_t*)&buffer[0]);
+    pcs.height               = swapEndianness(*(uint16_t*)&buffer[2]);
+    pcs.frameRate            =                *(uint8_t*) &buffer[4];
+    pcs.compositionNumber    = swapEndianness(*(uint16_t*)&buffer[5]);
+    pcs.compositionState     =                *(uint8_t*) &buffer[7];
+    pcs.paletteUpdFlag       =                *(uint8_t*) &buffer[8];
+    pcs.paletteID            =                *(uint8_t*) &buffer[9];
+    pcs.numCompositionObject =                *(uint8_t*) &buffer[10];
 
     for (int i = 0; i < pcs.numCompositionObject; i++) {
         size_t bufferStartIdx = 11 + (size_t)i * 8;
 
-        pcs.compositionObject[i].objectID = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 0]);
-        pcs.compositionObject[i].windowID = *(uint8_t*)&buffer[bufferStartIdx + 2];
-        pcs.compositionObject[i].objectCroppedFlag = *(uint8_t*)&buffer[bufferStartIdx + 3];
-        pcs.compositionObject[i].objectHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 4]);
-        pcs.compositionObject[i].objectVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 6]);
+        pcs.compositionObject[i].objectID          = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 0]);
+        pcs.compositionObject[i].windowID          =                *(uint8_t*) &buffer[bufferStartIdx + 2];
+        pcs.compositionObject[i].objectCroppedFlag =                *(uint8_t*) &buffer[bufferStartIdx + 3];
+        pcs.compositionObject[i].objectHorPos      = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 4]);
+        pcs.compositionObject[i].objectVerPos      = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 6]);
         /*
         pcs.compositionObject.objCropHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
         pcs.compositionObject.objCropVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
@@ -242,21 +244,21 @@ t_PCS ReadPCS(uint8_t* buffer) {
 }
 
 void WritePCS(t_PCS pcs, uint8_t* buffer) {
-    *((uint16_t*)(&buffer[0])) = swapEndianness(pcs.width);
-    *((uint16_t*)(&buffer[2])) = swapEndianness(pcs.height);
-    *((uint8_t*)(&buffer[4])) = pcs.frameRate;
-    *((uint16_t*)(&buffer[5])) = swapEndianness(pcs.compositionNumber);
-    *((uint8_t*)(&buffer[7])) = pcs.compositionState;
-    *((uint8_t*)(&buffer[8])) = pcs.paletteUpdFlag;
-    *((uint8_t*)(&buffer[9])) = pcs.paletteID;
-    *((uint8_t*)(&buffer[10])) = pcs.numCompositionObject;
+    *((uint16_t*)(&buffer[0]))  = swapEndianness(pcs.width);
+    *((uint16_t*)(&buffer[2]))  = swapEndianness(pcs.height);
+    *((uint8_t*) (&buffer[4]))  =                pcs.frameRate;
+    *((uint16_t*)(&buffer[5]))  = swapEndianness(pcs.compositionNumber);
+    *((uint8_t*) (&buffer[7]))  =                pcs.compositionState;
+    *((uint8_t*) (&buffer[8]))  =                pcs.paletteUpdFlag;
+    *((uint8_t*) (&buffer[9]))  =                pcs.paletteID;
+    *((uint8_t*) (&buffer[10])) =                pcs.numCompositionObject;
 
     for (int i = 0; i < pcs.numCompositionObject; i++) {
         size_t bufferStartIdx = 11 + (size_t)i * 8;
 
         *((uint16_t*)(&buffer[bufferStartIdx + 0])) = swapEndianness(pcs.compositionObject[i].objectID);
-        *((uint8_t*)(&buffer[bufferStartIdx + 2])) = pcs.compositionObject[i].windowID;
-        *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pcs.compositionObject[i].objectCroppedFlag;
+        *((uint8_t*) (&buffer[bufferStartIdx + 2])) =                pcs.compositionObject[i].windowID;
+        *((uint8_t*) (&buffer[bufferStartIdx + 3])) =                pcs.compositionObject[i].objectCroppedFlag;
         *((uint16_t*)(&buffer[bufferStartIdx + 4])) = swapEndianness(pcs.compositionObject[i].objectHorPos);
         *((uint16_t*)(&buffer[bufferStartIdx + 6])) = swapEndianness(pcs.compositionObject[i].objectVerPos);
     }
@@ -272,18 +274,19 @@ void WritePCS(t_PCS pcs, uint8_t* buffer) {
 t_PDS ReadPDS(uint8_t* buffer, size_t segment_size) {
     t_PDS pds;
 
-    pds.paletteID = *(uint8_t*)&buffer[0];
+    pds.paletteID            = *(uint8_t*)&buffer[0];
     pds.paletteVersionNumber = *(uint8_t*)&buffer[1];
+
     pds.paletteNum = (segment_size - 2) / 5;
 
     for (int i = 0; i < pds.paletteNum; i++) {
         size_t bufferStartIdx = 2 + (size_t)i * 5;
 
         pds.palette[i].paletteEntryID = *(uint8_t*)&buffer[bufferStartIdx + 0];
-        pds.palette[i].paletteY = *(uint8_t*)&buffer[bufferStartIdx + 1];
-        pds.palette[i].paletteCb = *(uint8_t*)&buffer[bufferStartIdx + 2];
-        pds.palette[i].paletteCr = *(uint8_t*)&buffer[bufferStartIdx + 3];
-        pds.palette[i].paletteA = *(uint8_t*)&buffer[bufferStartIdx + 4];
+        pds.palette[i].paletteY       = *(uint8_t*)&buffer[bufferStartIdx + 1];
+        pds.palette[i].paletteCb      = *(uint8_t*)&buffer[bufferStartIdx + 2];
+        pds.palette[i].paletteCr      = *(uint8_t*)&buffer[bufferStartIdx + 3];
+        pds.palette[i].paletteA       = *(uint8_t*)&buffer[bufferStartIdx + 4];
     }
 
     return pds;
@@ -372,11 +375,11 @@ int SearchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS
             found += 2;
         }
 
-        if (fixMode == e_cutMergeFixMode::cut
+        if (   fixMode == e_cutMergeFixMode::cut
             && found >= 1) {
             return i;
         }
-        if (fixMode == e_cutMergeFixMode::del
+        if (   fixMode == e_cutMergeFixMode::del
             && found >= 2) {
             return i;
         }
@@ -533,9 +536,9 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             }
         }
         else if (command == "crop") {
-            cmd.crop.left = atoi(argv[i + 1]);
-            cmd.crop.top = atoi(argv[i + 2]);
-            cmd.crop.right = atoi(argv[i + 3]);
+            cmd.crop.left   = atoi(argv[i + 1]);
+            cmd.crop.top    = atoi(argv[i + 2]);
+            cmd.crop.right  = atoi(argv[i + 3]);
             cmd.crop.bottom = atoi(argv[i + 4]);
             i += 5;
         }
@@ -658,7 +661,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     }
 
     if (cmd.cutMerge.doCutMerge) {
-        if (cmd.cutMerge.format == e_cutMergeFormat::vapoursynth
+        if (   cmd.cutMerge.format   == e_cutMergeFormat::vapoursynth
             && cmd.cutMerge.timeMode == e_cutMergeTimeMode::timestamp) {
             printf("Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
 
@@ -692,9 +695,9 @@ int main(int32_t argc, char** argv)
     }
 
 
-    bool doDelay = cmd.delay != 0;
-    bool doCrop = (cmd.crop.left + cmd.crop.top + cmd.crop.right + cmd.crop.bottom) > 0;
-    bool doResync = cmd.resync != 1;
+    bool doDelay   = cmd.delay != 0;
+    bool doCrop    = (cmd.crop.left + cmd.crop.top + cmd.crop.right + cmd.crop.bottom) > 0;
+    bool doResync  = cmd.resync != 1;
     bool doTonemap = cmd.tonemap != 1;
 
     bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
@@ -778,10 +781,11 @@ int main(int32_t argc, char** argv)
 
                         for (int i = 0; i < pds.paletteNum; i++) {
                             //convert Y from TV level (16-235) to full range
-                            double expandedY = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
+                            double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
                             double tonemappedY = expandedY * cmd.tonemap;
-                            double clampedY = std::min(1.0, std::max(tonemappedY, 0.0));
-                            double newY = round((clampedY * (235.0 - 16.0)) + 16.0);
+                            double clampedY    = std::min(1.0, std::max(tonemappedY, 0.0));
+                            double newY        = round((clampedY * (235.0 - 16.0)) + 16.0);
+
                             pds.palette[i].paletteY = (uint8_t)newY;
                         }
 
@@ -798,12 +802,12 @@ int main(int32_t argc, char** argv)
                         offesetCurrPCS = start;
 
                         if (doCrop) {
-                            screenRect.x = 0 + cmd.crop.left;
-                            screenRect.y = 0 + cmd.crop.top;
-                            screenRect.width = pcs.width - (cmd.crop.left + cmd.crop.right);
-                            screenRect.height = pcs.height - (cmd.crop.top + cmd.crop.bottom);
+                            screenRect.x      = 0 + cmd.crop.left;
+                            screenRect.y      = 0 + cmd.crop.top;
+                            screenRect.width  = pcs.width  - (cmd.crop.left + cmd.crop.right);
+                            screenRect.height = pcs.height - (cmd.crop.top  + cmd.crop.bottom);
 
-                            pcs.width = screenRect.width;
+                            pcs.width  = screenRect.width;
                             pcs.height = screenRect.height;
 
                             if (pcs.numCompositionObject > 1) {
@@ -909,9 +913,9 @@ int main(int32_t argc, char** argv)
                             uint16_t corrHor = 0;
                             uint16_t corrVer = 0;
 
-                            wndRect.x = wds.windows[i].WindowsHorPos;
-                            wndRect.y = wds.windows[i].WindowsVerPos;
-                            wndRect.width = wds.windows[i].WindowsWidth;
+                            wndRect.x      = wds.windows[i].WindowsHorPos;
+                            wndRect.y      = wds.windows[i].WindowsVerPos;
+                            wndRect.width  = wds.windows[i].WindowsWidth;
                             wndRect.height = wds.windows[i].WindowsHeight;
 
                             if (wndRect.width > screenRect.width
@@ -930,13 +934,13 @@ int main(int32_t argc, char** argv)
                                     t_timestamp timestamp = PTStoTimestamp(header.pts1);
                                     printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
 
-                                    uint16_t wndRightPoint = wndRect.x + wndRect.width;
+                                    uint16_t wndRightPoint    = wndRect.x    + wndRect.width;
                                     uint16_t screenRightPoint = screenRect.x + screenRect.width;
                                     if (wndRightPoint > screenRightPoint) {
                                         corrHor = wndRightPoint - screenRightPoint;
                                     }
 
-                                    uint16_t wndBottomPoint = wndRect.y + wndRect.height;
+                                    uint16_t wndBottomPoint    = wndRect.y    + wndRect.height;
                                     uint16_t screenBottomPoint = screenRect.y + screenRect.height;
                                     if (wndBottomPoint > screenBottomPoint) {
                                         corrVer = wndBottomPoint - screenBottomPoint;

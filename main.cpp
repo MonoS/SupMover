@@ -392,7 +392,7 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
     {
     case e_cutMergeFormat::secut:
     {
-        pattern = "[%[0123456789:.]-%[0123456789:.]]%n";
+        pattern = "%[0123456789:.]-%[0123456789:.]%n";
         break;
     }
     case e_cutMergeFormat::vapoursynth:

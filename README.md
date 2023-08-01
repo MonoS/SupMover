@@ -25,7 +25,7 @@ SupMover - Shift timings and Screen Area of PGS/Sup subtitle
   * allows to cut subtitle and optionally, if more sections are specified, to merge the cuts into a single subtitle file with the subsequent cuts shifted to have them begin at the end of the previous section. It is possible to personalize its functionality with some options
 	* list: specifies the space-separated list of sections, `format` and `timemode` can be used to further configure the parsing of this list. The list must be contained inside double quotes
 	* format: the format type of the list
-	  * secut: uses the same format as SECut. eg `[1000-2000] [3000-4000]`
+	  * secut: uses the same format as SECut. eg `1000-2000;3000-4000`
 	  * vapoursynt or vs: uses the same format as vapoursynth split sintax, additionally if `timemode` is set as `frame` the range will be treated inclusively at the start and exclusively at the end. eg `[1000:2001] [3000:4001]`
 	  * avisynth or avs: uses the same format as avisynth trim sintax. Eg `(1000,2000) (3000,4000)`
 	  * remap: uses the same format as [Vapoursynth-RemapFrames ReplaceFrameSimple](https://github.com/Irrational-Encoding-Wizardry/Vapoursynth-RemapFrames#replaceframessimple). Eg `[1000 2000] [3000 4000]`

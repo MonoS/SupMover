@@ -703,12 +703,12 @@ int main(int32_t argc, char** argv)
     bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
 
     FILE* input = fopen(argv[1], "rb");
-    if (input == NULL) {
+    if (input == nullptr) {
         printf("Unable to open input file!");
         return -1;
     }
     FILE* output = fopen(argv[2], "wb");
-    if (output == NULL) {
+    if (output == nullptr) {
         printf("Unable to open output file!");
         fclose(input);
         return -1;
@@ -721,7 +721,7 @@ int main(int32_t argc, char** argv)
 
         uint8_t* buffer = (uint8_t*)calloc(1, size);
         uint8_t* newBuffer = buffer;
-        if (buffer == NULL) {
+        if (buffer == nullptr) {
             return -1;
         }
 

@@ -1,6 +1,10 @@
 #include <iostream>
-#include <cstdio>
+#include <cctype>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <algorithm>
 #include <vector>
 

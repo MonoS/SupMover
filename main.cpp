@@ -1,12 +1,14 @@
 #include <iostream>
+#include <cctype>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
-#include <math.h>
+#include <cstdlib>
+#include <cstring>
 #include <algorithm>
 #include <vector>
 
 //Documentation: http://blog.thescorpius.com/index.php/2017/07/15/presentation-graphic-stream-sup-files-bluray-subtitle-format/
-
-//using namespace std;
 
 double const MS_TO_PTS_MULT = 90.0f;
 size_t const HEADER_SIZE = 13;
@@ -309,7 +311,9 @@ void WritePDS(t_PDS pds, uint8_t* buffer) {
 }
 
 void toLower(std::string& str) {
-    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    std::transform(str.begin(), str.end(), str.begin(), [](int i) {
+            return std::tolower(i);
+    });
 }
 
 bool rectIsContained(t_rect container, t_rect window) {
@@ -434,24 +438,24 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
         {
         case e_cutMergeTimeMode::ms:
         {
-            beg = atoi(strBeg);
-            end = atoi(strEnd);
+            beg = std::atoi(strBeg);
+            end = std::atoi(strEnd);
 
-            section.begin = (uint32_t)round(beg * MS_TO_PTS_MULT);
-            section.end = (uint32_t)round(end * MS_TO_PTS_MULT);
+            section.begin = (uint32_t)std::round(beg * MS_TO_PTS_MULT);
+            section.end = (uint32_t)std::round(end * MS_TO_PTS_MULT);
             break;
         }
         case e_cutMergeTimeMode::frame:
         {
-            beg = atoi(strBeg);
-            end = atoi(strEnd);
+            beg = std::atoi(strBeg);
+            end = std::atoi(strEnd);
 
             if (cutMerge->format == e_cutMergeFormat::vapoursynth) {
                 end--;
             }
 
-            section.begin = (uint32_t)round(((double)beg) / cutMerge->fps * MS_TO_PTS_MULT);
-            section.end = (uint32_t)round(((double)end) / cutMerge->fps * MS_TO_PTS_MULT);
+            section.begin = (uint32_t)std::round(((double)beg) / cutMerge->fps * MS_TO_PTS_MULT);
+            section.end = (uint32_t)std::round(((double)end) / cutMerge->fps * MS_TO_PTS_MULT);
             break;
         }
         case e_cutMergeTimeMode::timestamp:
@@ -459,16 +463,16 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
             beg = timestampToMs(strBeg);
             end = timestampToMs(strEnd);
             if (beg == -1) {
-                printf("Timestamp %s is invalid\n", strBeg);
+                std::printf("Timestamp %s is invalid\n", strBeg);
                 return false;
             }
             if (beg == -1) {
-                printf("Timestamp %s is invalid\n", strEnd);
+                std::printf("Timestamp %s is invalid\n", strEnd);
                 return false;
             }
 
-            section.begin = (uint32_t)round(beg * MS_TO_PTS_MULT);
-            section.end = (uint32_t)round(end * MS_TO_PTS_MULT);
+            section.begin = (uint32_t)std::round(beg * MS_TO_PTS_MULT);
+            section.end = (uint32_t)std::round(end * MS_TO_PTS_MULT);
             break;
         }
         default:
@@ -485,7 +489,7 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
         }
     } while (list.length() > 0);
 
-    sort(cutMerge->section.begin(), cutMerge->section.end(), CompareCutMergeSection);
+    std::sort(cutMerge->section.begin(), cutMerge->section.end(), CompareCutMergeSection);
 
     int32_t runningDelay = 0;
     t_cutMergeSection prec = {};
@@ -510,9 +514,9 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     bool doSubcommand = false;
     if (argc == 4) {
         //backward compatibility
-        cmd.delay = (int32_t)round(atof(argv[3]) * MS_TO_PTS_MULT);
+        cmd.delay = (int32_t)std::round(atof(argv[3]) * MS_TO_PTS_MULT);
         if (cmd.delay != 0) {
-            printf("Running in backwards-compatibility mode\n");
+            std::printf("Running in backwards-compatibility mode\n");
             return true;
         }
     }
@@ -526,7 +530,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             i += 2;
 
             if (cmd.cutMerge.doCutMerge) {
-                printf("Delay parameter will NOT be applied to Cut&Merge\n");
+                std::printf("Delay parameter will NOT be applied to Cut&Merge\n");
                 /*
                 for (int i = 0; i < cmd.cutMerge.section.size(); i++) {
                     cmd.cutMerge.section[i].begin += cmd.delay;
@@ -546,19 +550,19 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             std::string strFactor = argv[i + 1];
             size_t idx = strFactor.find("/");
             if (idx != SIZE_MAX) {
-                double num = atof(strFactor.substr(0, idx).c_str());
-                double den = atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
+                double num = std::atof(strFactor.substr(0, idx).c_str());
+                double den = std::atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
 
                 cmd.resync = num / den;
             }
             else {
-                cmd.resync = atof(argv[i + 1]);
+                cmd.resync = std::atof(argv[i + 1]);
             }
 
-            cmd.delay = (int32_t)round(((double)cmd.delay * cmd.resync));
+            cmd.delay = (int32_t)std::round(((double)cmd.delay * cmd.resync));
 
             if (cmd.cutMerge.doCutMerge) {
-                printf("Resync parameter will NOT be applied to Cut&Merge\n");
+                std::printf("Resync parameter will NOT be applied to Cut&Merge\n");
                 /*
                 for (int i = 0; i < cmd.cutMerge.section.size(); i++) {
                     cmd.cutMerge.section[i].begin *= cmd.resync;
@@ -574,7 +578,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             i += 1;
         }
         else if (command == "tonemap") {
-            cmd.tonemap = atof(argv[i + 1]);
+            cmd.tonemap = std::atof(argv[i + 1]);
             i += 2;
         }
         else if (command == "cut_merge") {
@@ -623,13 +627,13 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
                 size_t idx = strFactor.find("/");
                 if (idx != SIZE_MAX) {
-                    double num = atof(strFactor.substr(0, idx).c_str());
-                    double den = atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
+                    double num = std::atof(strFactor.substr(0, idx).c_str());
+                    double den = std::atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
 
                     cmd.cutMerge.fps = num / den;
                 }
                 else {
-                    cmd.cutMerge.fps = atof(argv[i + 2]);
+                    cmd.cutMerge.fps = std::atof(argv[i + 2]);
                 }
                 i++;
             }
@@ -663,7 +667,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     if (cmd.cutMerge.doCutMerge) {
         if (   cmd.cutMerge.format   == e_cutMergeFormat::vapoursynth
             && cmd.cutMerge.timeMode == e_cutMergeTimeMode::timestamp) {
-            printf("Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
+            std::printf("Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
 
             return false;
         }
@@ -683,14 +687,14 @@ int main(int32_t argc, char** argv)
 
 
     if (argc < 4) {
-        printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>]\r\n");
-        printf("delay and resync command are executed in the order supplied\r\n");
+        std::printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>]\r\n");
+        std::printf("delay and resync command are executed in the order supplied\r\n");
         return 0;
     }
     t_cmd cmd = {};
 
     if (!ParseCMD(argc, argv, cmd)) {
-        printf("Error parsing input\r\n");
+        std::printf("Error parsing input\r\n");
         return -1;
     }
 
@@ -702,30 +706,30 @@ int main(int32_t argc, char** argv)
 
     bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
 
-    FILE* input = fopen(argv[1], "rb");
-    if (input == NULL) {
-        printf("Unable to open input file!");
+    FILE* input = std::fopen(argv[1], "rb");
+    if (input == nullptr) {
+        std::printf("Unable to open input file!");
         return -1;
     }
-    FILE* output = fopen(argv[2], "wb");
-    if (output == NULL) {
-        printf("Unable to open output file!");
-        fclose(input);
+    FILE* output = std::fopen(argv[2], "wb");
+    if (output == nullptr) {
+        std::printf("Unable to open output file!");
+        std::fclose(input);
         return -1;
     }
 
-    fseek(input, 0, SEEK_END);
-    size = newSize = ftell(input);
+    std::fseek(input, 0, SEEK_END);
+    size = newSize = std::ftell(input);
     if (size != 0) {
-        fseek(input, 0, SEEK_SET);
+        std::fseek(input, 0, SEEK_SET);
 
-        uint8_t* buffer = (uint8_t*)calloc(1, size);
+        uint8_t* buffer = (uint8_t*)std::calloc(1, size);
         uint8_t* newBuffer = buffer;
-        if (buffer == NULL) {
+        if (buffer == nullptr) {
             return -1;
         }
 
-        fread(buffer, size, 1, input);
+        std::fread(buffer, size, 1, input);
         if (doSomething) {
             size_t start = 0;
 
@@ -756,14 +760,14 @@ int main(int32_t argc, char** argv)
             for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
                 header = ReadHeader(&buffer[start]);
                 if (header.header != 0x5047) {
-                    printf("Correct header not found at position %zd, abort!", start);
-                    fclose(input);
-                    fclose(output);
+                    std::printf("Correct header not found at position %zd, abort!", start);
+                    std::fclose(input);
+                    std::fclose(output);
                     return -1;
                 }
 
                 if (doResync) {
-                    header.pts1 = (uint32_t)round((double)header.pts1 * cmd.resync);
+                    header.pts1 = (uint32_t)std::round((double)header.pts1 * cmd.resync);
                 }
                 if (doDelay) {
                     header.pts1 = header.pts1 + cmd.delay;
@@ -775,7 +779,7 @@ int main(int32_t argc, char** argv)
 
                 switch (header.segmentType) {
                 case 0x14:
-                    //printf("PDS\r\n");
+                    //std::printf("PDS\r\n");
                     if (doTonemap) {
                         pds = ReadPDS(&buffer[start + HEADER_SIZE], header.dataLength);
 
@@ -784,7 +788,7 @@ int main(int32_t argc, char** argv)
                             double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
                             double tonemappedY = expandedY * cmd.tonemap;
                             double clampedY    = std::min(1.0, std::max(tonemappedY, 0.0));
-                            double newY        = round((clampedY * (235.0 - 16.0)) + 16.0);
+                            double newY        = std::round((clampedY * (235.0 - 16.0)) + 16.0);
 
                             pds.palette[i].paletteY = (uint8_t)newY;
                         }
@@ -793,10 +797,10 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x15:
-                    //printf("ODS\r\n");
+                    //std::printf("ODS\r\n");
                     break;
                 case 0x16:
-                    //printf("PCS\r\n");
+                    //std::printf("PCS\r\n");
                     if (doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offesetCurrPCS = start;
@@ -812,13 +816,13 @@ int main(int32_t argc, char** argv)
 
                             if (pcs.numCompositionObject > 1) {
                                 t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                printf("Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                std::printf("Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                             }
 
                             for (int i = 0; i < pcs.numCompositionObject; i++) {
                                 if (pcs.compositionObject[i].objectCroppedFlag == 0x40) {
                                     t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                                 }
 
                                 if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
@@ -873,8 +877,8 @@ int main(int32_t argc, char** argv)
                                 WriteHeader(zeroHeader, &zeroBuffer[pos]);
                                 pos += 13;
 
-                                printf("Writing %d bytes as first display set\n", pos);
-                                fwrite(zeroBuffer, pos, 1, output);
+                                std::printf("Writing %d bytes as first display set\n", pos);
+                                std::fwrite(zeroBuffer, pos, 1, output);
 
                                 //For Cut&Merge functionality we don't need to save the added segment as it
                                 //is saved in the resulting file automatically
@@ -898,14 +902,14 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x17:
-                    //printf("WDS\r\n");
+                    //std::printf("WDS\r\n");
                     fixPCS = false;
                     if (doCrop) {
                         wds = ReadWDS(&buffer[start + HEADER_SIZE]);
 
                         if (wds.numberOfWindows > 1) {
                             t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                            printf("Multiple windows at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                            std::printf("Multiple windows at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                         }
 
                         for (int i = 0; i < wds.numberOfWindows; i++) {
@@ -921,8 +925,8 @@ int main(int32_t argc, char** argv)
                             if (wndRect.width > screenRect.width
                                 || wndRect.height > screenRect.height) {
                                 t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
-                                printf("Implement it!\r\n");
+                                std::printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                std::printf("Implement it!\r\n");
                                 /*
                                 pcs.width = wndRect.width;
                                 pcs.height = wndRect.height;
@@ -932,7 +936,7 @@ int main(int32_t argc, char** argv)
                             else {
                                 if (!rectIsContained(screenRect, wndRect)) {
                                     t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
 
                                     uint16_t wndRightPoint    = wndRect.x    + wndRect.width;
                                     uint16_t screenRightPoint = screenRect.x + screenRect.width;
@@ -947,7 +951,7 @@ int main(int32_t argc, char** argv)
                                     }
 
                                     if (corrHor + corrVer != 0) {
-                                        printf("Please check\r\n");
+                                        std::printf("Please check\r\n");
                                     }
                                 }
                             }
@@ -984,7 +988,7 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x80:
-                    //printf("END\r\n");
+                    //std:printf("END\r\n");
 
                     if (cmd.cutMerge.doCutMerge) {
                         if (cutMerge_foundEnd) {
@@ -1011,7 +1015,7 @@ int main(int32_t argc, char** argv)
             //Cut&Merge functionality is done in two pass as we need the resulting timestamp to do it
             //and we need to fix all the segment with the sum of all the in-between section delay
             if (cmd.cutMerge.doCutMerge) {
-                newBuffer = (uint8_t*)calloc(1, size);
+                newBuffer = (uint8_t*)std::calloc(1, size);
 
                 header = {};
                 cutMerge_foundBegin = false;
@@ -1082,7 +1086,7 @@ int main(int32_t argc, char** argv)
 
                                 cutMerge_offsetEndCopy = start + HEADER_SIZE + header.dataLength;
 
-                                memcpy(&newBuffer[cutMerge_currentNewBufferSize],
+                                std::memcpy(&newBuffer[cutMerge_currentNewBufferSize],
                                     &buffer[cutMerge_offsetBeginCopy],
                                     (cutMerge_offsetEndCopy - cutMerge_offsetBeginCopy));
 
@@ -1107,11 +1111,11 @@ int main(int32_t argc, char** argv)
             }
         }
 
-        fwrite(newBuffer, newSize, 1, output);
+        std::fwrite(newBuffer, newSize, 1, output);
     }
 
-    fclose(input);
-    fclose(output);
+    std::fclose(input);
+    std::fclose(output);
 
     return 0;
 }

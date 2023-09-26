@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: '*'
+  pull_request:
+    branches: '*'
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install dependencies
+      run: sudo apt-get install -y make g++
+    - name: Compile
+      run: make
+    - name: Strip binary
+      run: strip supmover
+    - uses: actions/upload-artifact@v3
+      with:
+        name: supmover-linux
+        path: supmover
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Compile
+      run: make
+    - name: Strip binary
+      run: strip supmover
+    - uses: actions/upload-artifact@v3
+      with:
+        name: supmover-macos
+        path: supmover

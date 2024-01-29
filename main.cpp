@@ -27,6 +27,11 @@ struct t_timestamp {
     unsigned long ms;
 };
 
+struct t_move {
+    int16_t deltaX;
+    int16_t deltaY;
+};
+
 struct t_crop {
     uint16_t left;
     uint16_t top;
@@ -138,6 +143,7 @@ struct t_PDS {
 
 struct t_cmd {
     int32_t delay = 0;
+    t_move move = {};
     t_crop crop = {};
     double resync = 1;
     bool addZero = false;
@@ -504,6 +510,7 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
 
 bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     cmd.delay = 0;
+    cmd.move = {};
     cmd.crop = {};
     cmd.resync = 1;
     cmd.addZero = false;
@@ -538,6 +545,11 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 }
                 */
             }
+        }
+        else if (command == "move") {
+            cmd.move.deltaX = atoi(argv[i + 1]);
+            cmd.move.deltaY = atoi(argv[i + 2]);
+            i += 3;
         }
         else if (command == "crop") {
             cmd.crop.left   = atoi(argv[i + 1]);
@@ -687,7 +699,7 @@ int main(int32_t argc, char** argv)
 
 
     if (argc < 4) {
-        std::printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>]\r\n");
+        std::printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [move (<delta x> <delta y>)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>]\r\n");
         std::printf("delay and resync command are executed in the order supplied\r\n");
         return 0;
     }
@@ -700,11 +712,12 @@ int main(int32_t argc, char** argv)
 
 
     bool doDelay   = cmd.delay != 0;
+    bool doMove    = cmd.move.deltaX != 0 || cmd.move.deltaY != 0;
     bool doCrop    = (cmd.crop.left + cmd.crop.top + cmd.crop.right + cmd.crop.bottom) > 0;
     bool doResync  = cmd.resync != 1;
     bool doTonemap = cmd.tonemap != 1;
 
-    bool doSomething = doDelay || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
+    bool doSomething = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
 
     FILE* input = std::fopen(argv[1], "rb");
     if (input == nullptr) {
@@ -801,7 +814,7 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x16:
                     //std::printf("PCS\r\n");
-                    if (doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
+                    if (doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offesetCurrPCS = start;
 
@@ -904,7 +917,7 @@ int main(int32_t argc, char** argv)
                 case 0x17:
                     //std::printf("WDS\r\n");
                     fixPCS = false;
-                    if (doCrop) {
+                    if (doMove || doCrop) {
                         wds = ReadWDS(&buffer[start + HEADER_SIZE]);
 
                         if (wds.numberOfWindows > 1) {
@@ -912,71 +925,101 @@ int main(int32_t argc, char** argv)
                             std::printf("Multiple windows at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                         }
 
-                        for (int i = 0; i < wds.numberOfWindows; i++) {
-                            t_rect wndRect;
-                            uint16_t corrHor = 0;
-                            uint16_t corrVer = 0;
+                        if (doMove) {
+                            for (int i = 0; i < wds.numberOfWindows; i++) {
+                                t_window *window = &wds.windows[i];
+                                int16_t minDeltaX = -(int16_t)window->WindowsHorPos;
+                                int16_t minDeltaY = -(int16_t)window->WindowsVerPos;
+                                int16_t maxDeltaX = pcs.width - (window->WindowsHorPos + window->WindowsWidth);
+                                int16_t maxDeltaY = pcs.height - (window->WindowsVerPos + window->WindowsHeight);
+                                int16_t clampedDeltaX = std::min(std::max(cmd.move.deltaX, minDeltaX), maxDeltaX);
+                                int16_t clampedDeltaY = std::min(std::max(cmd.move.deltaY, minDeltaY), maxDeltaY);
 
-                            wndRect.x      = wds.windows[i].WindowsHorPos;
-                            wndRect.y      = wds.windows[i].WindowsVerPos;
-                            wndRect.width  = wds.windows[i].WindowsWidth;
-                            wndRect.height = wds.windows[i].WindowsHeight;
+                                window->WindowsHorPos += clampedDeltaX;
+                                window->WindowsVerPos += clampedDeltaY;
 
-                            if (wndRect.width > screenRect.width
-                                || wndRect.height > screenRect.height) {
-                                t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                std::printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
-                                std::printf("Implement it!\r\n");
-                                /*
-                                pcs.width = wndRect.width;
-                                pcs.height = wndRect.height;
-                                fixPCS = true;
-                                */
-                            }
-                            else {
-                                if (!rectIsContained(screenRect, wndRect)) {
-                                    t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    std::printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                for (int j = 0; j < pcs.numCompositionObject; j++) {
+                                    t_compositionObject *object = &pcs.compositionObject[j];
+                                    if (object->windowID != window->windowID) continue;
 
-                                    uint16_t wndRightPoint    = wndRect.x    + wndRect.width;
-                                    uint16_t screenRightPoint = screenRect.x + screenRect.width;
-                                    if (wndRightPoint > screenRightPoint) {
-                                        corrHor = wndRightPoint - screenRightPoint;
+                                    if (object->objectCroppedFlag == 0x40) {
+                                        object->objCropHorPos += clampedDeltaX;
+                                        object->objCropVerPos += clampedDeltaY;
                                     }
-
-                                    uint16_t wndBottomPoint    = wndRect.y    + wndRect.height;
-                                    uint16_t screenBottomPoint = screenRect.y + screenRect.height;
-                                    if (wndBottomPoint > screenBottomPoint) {
-                                        corrVer = wndBottomPoint - screenBottomPoint;
-                                    }
-
-                                    if (corrHor + corrVer != 0) {
-                                        std::printf("Please check\r\n");
-                                    }
+                                    object->objectHorPos += clampedDeltaX;
+                                    object->objectVerPos += clampedDeltaY;
+                                    fixPCS = true;
                                 }
                             }
+                        }
 
-                            if (cmd.crop.left > wds.windows[i].WindowsHorPos) {
-                                wds.windows[i].WindowsHorPos = 0;
-                            }
-                            else {
-                                wds.windows[i].WindowsHorPos -= (cmd.crop.left + corrHor);
-                            }
+                        if (doCrop) {
+                            for (int i = 0; i < wds.numberOfWindows; i++) {
+                                t_rect wndRect;
+                                uint16_t corrHor = 0;
+                                uint16_t corrVer = 0;
 
-                            if (cmd.crop.top > wds.windows[i].WindowsVerPos) {
-                                wds.windows[i].WindowsVerPos = 0;
-                            }
-                            else {
-                                wds.windows[i].WindowsVerPos -= (cmd.crop.top + corrVer);
-                            }
+                                wndRect.x      = wds.windows[i].WindowsHorPos;
+                                wndRect.y      = wds.windows[i].WindowsVerPos;
+                                wndRect.width  = wds.windows[i].WindowsWidth;
+                                wndRect.height = wds.windows[i].WindowsHeight;
 
-                            if (corrVer != 0) {
-                                pcs.compositionObject[i].objectVerPos -= corrVer;
-                                fixPCS = true;
-                            }
-                            if (corrHor != 0) {
-                                pcs.compositionObject[i].objectHorPos -= corrHor;
-                                fixPCS = true;
+                                if (wndRect.width > screenRect.width
+                                    || wndRect.height > screenRect.height) {
+                                    t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                                    std::printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::printf("Implement it!\r\n");
+                                    /*
+                                    pcs.width = wndRect.width;
+                                    pcs.height = wndRect.height;
+                                    fixPCS = true;
+                                    */
+                                }
+                                else {
+                                    if (!rectIsContained(screenRect, wndRect)) {
+                                        t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                                        std::printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+
+                                        uint16_t wndRightPoint    = wndRect.x    + wndRect.width;
+                                        uint16_t screenRightPoint = screenRect.x + screenRect.width;
+                                        if (wndRightPoint > screenRightPoint) {
+                                            corrHor = wndRightPoint - screenRightPoint;
+                                        }
+
+                                        uint16_t wndBottomPoint    = wndRect.y    + wndRect.height;
+                                        uint16_t screenBottomPoint = screenRect.y + screenRect.height;
+                                        if (wndBottomPoint > screenBottomPoint) {
+                                            corrVer = wndBottomPoint - screenBottomPoint;
+                                        }
+
+                                        if (corrHor + corrVer != 0) {
+                                            std::printf("Please check\r\n");
+                                        }
+                                    }
+                                }
+
+                                if (cmd.crop.left > wds.windows[i].WindowsHorPos) {
+                                    wds.windows[i].WindowsHorPos = 0;
+                                }
+                                else {
+                                    wds.windows[i].WindowsHorPos -= (cmd.crop.left + corrHor);
+                                }
+
+                                if (cmd.crop.top > wds.windows[i].WindowsVerPos) {
+                                    wds.windows[i].WindowsVerPos = 0;
+                                }
+                                else {
+                                    wds.windows[i].WindowsVerPos -= (cmd.crop.top + corrVer);
+                                }
+
+                                if (corrVer != 0) {
+                                    pcs.compositionObject[i].objectVerPos -= corrVer;
+                                    fixPCS = true;
+                                }
+                                if (corrHor != 0) {
+                                    pcs.compositionObject[i].objectHorPos -= corrHor;
+                                    fixPCS = true;
+                                }
                             }
                         }
 

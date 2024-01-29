@@ -2,7 +2,7 @@
 SupMover - Shift timings and Screen Area of PGS/Sup subtitle
 
 # Usage
-`SupMover (<input.sup> <output.sup>) [delay (ms)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>] [cut_merge <Cut&Merge option>]`
+`SupMover (<input.sup> <output.sup>) [delay (ms)] [move (<delta x> <delta y>)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>] [cut_merge <Cut&Merge option>]`
 
 `SupMover (<input.sup> <output.sup> <ms>)` old syntax, kept for backward compatibility
 
@@ -11,10 +11,14 @@ SupMover - Shift timings and Screen Area of PGS/Sup subtitle
   * Apply a milliseconds delay, positive or negative, to all the subpic of the subtitle, it can be fractional as the SUP speficication have a precision of 1/90ms
 * resync
   * Multiply all the timestamp by this factor, this can also be supplied as a fraction
+* move
+  * Shift the windows position of all subpic by the inputed parameters (the image data is left untouched).
+  * Position is clamped to the screen edges so that windows are always fully contained within the screen area.
 * crop
   * Crop the windows area of all subpic by the inputed parameters.
   * This is done losslessly by only shifting the windows position (the image data is left untouched).
   * Crop functionality is not exstensivelly tested when multiple Composition Object or Windows are present or when the windows are is outside the new screen area, a warning is issued if that's the case and i strongly advise to check the resulting subtitle with a video player, also handling of the Object Cropped flag and windows area bigger than the new screen area is not implemented, a warning is issued if needed
+  * If both move and crop are selected, the crop is performed after the move.
 * delay + resync
   * If both modes are selected the delay will be adjusted if it comes before the resync parameter, for example if the program is launched with `delay 1000 resync 1.001` it will be internally adjusted to 1001ms, instead if it's launched with `resync 1.001 delay 1000` it will not
 * add_zero

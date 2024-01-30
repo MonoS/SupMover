@@ -970,12 +970,12 @@ int main(int32_t argc, char** argv)
                                 wds.windows[i].WindowsVerPos -= (cmd.crop.top + corrVer);
                             }
 
-                            if (corrVer != 0) {
-                                pcs.compositionObject[i].objectVerPos -= corrVer;
-                                fixPCS = true;
-                            }
-                            if (corrHor != 0) {
-                                pcs.compositionObject[i].objectHorPos -= corrHor;
+                            if (corrVer != 0 || corrHor != 0) {
+                                for (int j = 0; j < pcs.numCompositionObject; j++) {
+                                    if (pcs.compositionObject[j].windowID != wds.windows[i].windowID) continue;
+                                    pcs.compositionObject[j].objectVerPos -= corrVer;
+                                    pcs.compositionObject[j].objectHorPos -= corrHor;
+                                }
                                 fixPCS = true;
                             }
                         }

@@ -3,3 +3,6 @@ obj/
 SupMover.depend
 SupMover.cbp
 SupMover.layout
+
+supmover
+main.o

@@ -739,7 +739,7 @@ int main(int32_t argc, char** argv)
             t_PCS pcs = {};
             t_PDS pds = {};
 
-            size_t offesetCurrPCS = 0;
+            size_t offsetCurrPCS = 0;
             bool fixPCS = false;
 
             std::vector<t_compositionNumberToSaveInfo> cutMerge_compositionNumberToSave = {};
@@ -803,7 +803,7 @@ int main(int32_t argc, char** argv)
                     //std::printf("PCS\r\n");
                     if (doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
-                        offesetCurrPCS = start;
+                        offsetCurrPCS = start;
 
                         if (doCrop) {
                             screenRect.x      = 0 + cmd.crop.left;
@@ -970,18 +970,18 @@ int main(int32_t argc, char** argv)
                                 wds.windows[i].WindowsVerPos -= (cmd.crop.top + corrVer);
                             }
 
-                            if (corrVer != 0) {
-                                pcs.compositionObject[i].objectVerPos -= corrVer;
-                                fixPCS = true;
-                            }
-                            if (corrHor != 0) {
-                                pcs.compositionObject[i].objectHorPos -= corrHor;
+                            if (corrVer != 0 || corrHor != 0) {
+                                for (int j = 0; j < pcs.numCompositionObject; j++) {
+                                    if (pcs.compositionObject[j].windowID != wds.windows[i].windowID) continue;
+                                    pcs.compositionObject[j].objectVerPos -= corrVer;
+                                    pcs.compositionObject[j].objectHorPos -= corrHor;
+                                }
                                 fixPCS = true;
                             }
                         }
 
                         if (fixPCS) {
-                            WritePCS(pcs, &buffer[offesetCurrPCS + HEADER_SIZE]);
+                            WritePCS(pcs, &buffer[offsetCurrPCS + HEADER_SIZE]);
                         }
                         WriteWDS(wds, &buffer[start + HEADER_SIZE]);
 

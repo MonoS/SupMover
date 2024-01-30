@@ -739,7 +739,7 @@ int main(int32_t argc, char** argv)
             t_PCS pcs = {};
             t_PDS pds = {};
 
-            size_t offesetCurrPCS = 0;
+            size_t offsetCurrPCS = 0;
             bool fixPCS = false;
 
             std::vector<t_compositionNumberToSaveInfo> cutMerge_compositionNumberToSave = {};
@@ -803,7 +803,7 @@ int main(int32_t argc, char** argv)
                     //std::printf("PCS\r\n");
                     if (doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
-                        offesetCurrPCS = start;
+                        offsetCurrPCS = start;
 
                         if (doCrop) {
                             screenRect.x      = 0 + cmd.crop.left;
@@ -981,7 +981,7 @@ int main(int32_t argc, char** argv)
                         }
 
                         if (fixPCS) {
-                            WritePCS(pcs, &buffer[offesetCurrPCS + HEADER_SIZE]);
+                            WritePCS(pcs, &buffer[offsetCurrPCS + HEADER_SIZE]);
                         }
                         WriteWDS(wds, &buffer[start + HEADER_SIZE]);
 

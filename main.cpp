@@ -943,8 +943,12 @@ int main(int32_t argc, char** argv)
                                     if (object->windowID != window->windowID) continue;
 
                                     if (object->objectCroppedFlag == 0x40) {
+                                        t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                                        std::printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Crop fields are not supported yet.\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                        /*
                                         object->objCropHorPos += clampedDeltaX;
                                         object->objCropVerPos += clampedDeltaY;
+                                         */
                                     }
                                     object->objectHorPos += clampedDeltaX;
                                     object->objectVerPos += clampedDeltaY;

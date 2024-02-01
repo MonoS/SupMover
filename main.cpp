@@ -532,7 +532,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
         std::string command = argv[i];
         toLower(command);
 
-        if (command == "delay") {
+        if (command == "delay" || command == "--delay") {
             cmd.delay = (int32_t)round(atof(argv[i + 1]) * MS_TO_PTS_MULT);
             i += 2;
 
@@ -546,19 +546,19 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 */
             }
         }
-        else if (command == "move") {
+        else if (command == "move" || command == "--move") {
             cmd.move.deltaX = atoi(argv[i + 1]);
             cmd.move.deltaY = atoi(argv[i + 2]);
             i += 3;
         }
-        else if (command == "crop") {
+        else if (command == "crop" || command == "--crop") {
             cmd.crop.left   = atoi(argv[i + 1]);
             cmd.crop.top    = atoi(argv[i + 2]);
             cmd.crop.right  = atoi(argv[i + 3]);
             cmd.crop.bottom = atoi(argv[i + 4]);
             i += 5;
         }
-        else if (command == "resync") {
+        else if (command == "resync" || command == "--resync") {
             std::string strFactor = argv[i + 1];
             size_t idx = strFactor.find("/");
             if (idx != SIZE_MAX) {
@@ -585,19 +585,19 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             i += 2;
         }
-        else if (command == "add_zero") {
+        else if (command == "add_zero" || command == "--add_zero") {
             cmd.addZero = true;
             i += 1;
         }
-        else if (command == "tonemap") {
+        else if (command == "tonemap" || command == "--tonemap") {
             cmd.tonemap = std::atof(argv[i + 1]);
             i += 2;
         }
-        else if (command == "cut_merge") {
+        else if (command == "cut_merge" || command == "--cut_merge") {
             cmd.cutMerge.doCutMerge = true;
             i++;
         }
-        else if (command == "format") {
+        else if (command == "format" || command == "--format") {
             std::string formatMode = argv[i + 1];
             toLower(formatMode);
 
@@ -618,7 +618,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             }
             i += 2;
         }
-        else if (command == "list") {
+        else if (command == "list" || command == "--list") {
             std::string list = argv[i + 1];
             toLower(list);
 
@@ -626,7 +626,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             i += 2;
         }
-        else if (command == "timemode") {
+        else if (command == "timemode" || command == "--timemode") {
             std::string timemode = argv[i + 1];
             toLower(timemode);
 
@@ -658,7 +658,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             i += 2;
         }
-        else if (command == "fixmode") {
+        else if (command == "fixmode" || command == "--fixmode") {
             std::string fixmode = argv[i + 1];
             toLower(fixmode);
 
@@ -692,6 +692,26 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     return true;
 }
 
+const char* usageHelp = R"(Usage:  supmover <input.sup> <output.sup> [OPTIONS ...]
+
+OPTIONS:
+  --delay <ms>
+  --move <delta x> <delta y>
+  --crop <left> <top> <right> <bottom>
+  --resync (<num>/<den> | <multFactor>)
+  --add_zero
+  --tonemap <perc>
+  --cut_merge [CUT&MERGE OPTIONS ...]
+
+CUT&MERGE OPTIONS:
+  --list <list of sections>
+  --format (secut | (vapoursynth | vs) | (avisynth | avs) | remap)
+  --timemode (ms | frame | timestamp)
+  --fixmode (cut | (delete | del))
+
+Delay and resync command are executed in the order supplied.
+)";
+
 int main(int32_t argc, char** argv)
 {
     size_t size, newSize;
@@ -699,9 +719,8 @@ int main(int32_t argc, char** argv)
 
 
     if (argc < 4) {
-        std::printf("Usage: SupMover (<input.sup> <output.sup>) [delay (ms)] [move (<delta x> <delta y>)] [crop (<left> <top> <right> <bottom>)] [resync (<num>/<den> | multFactor)] [add_zero] [tonemap <perc>]\r\n");
-        std::printf("delay and resync command are executed in the order supplied\r\n");
-        return 0;
+        std::printf("%s", usageHelp);
+        return -1;
     }
     t_cmd cmd = {};
 

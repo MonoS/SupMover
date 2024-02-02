@@ -469,11 +469,11 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
             beg = timestampToMs(strBeg);
             end = timestampToMs(strEnd);
             if (beg == -1) {
-                std::printf("Timestamp %s is invalid\n", strBeg);
+                std::fprintf(stderr, "Timestamp %s is invalid\n", strBeg);
                 return false;
             }
             if (beg == -1) {
-                std::printf("Timestamp %s is invalid\n", strEnd);
+                std::fprintf(stderr, "Timestamp %s is invalid\n", strEnd);
                 return false;
             }
 
@@ -523,7 +523,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
         //backward compatibility
         cmd.delay = (int32_t)std::round(atof(argv[3]) * MS_TO_PTS_MULT);
         if (cmd.delay != 0) {
-            std::printf("Running in backwards-compatibility mode\n");
+            std::fprintf(stderr, "Running in backwards-compatibility mode\n");
             return true;
         }
     }
@@ -537,7 +537,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             i += 2;
 
             if (cmd.cutMerge.doCutMerge) {
-                std::printf("Delay parameter will NOT be applied to Cut&Merge\n");
+                std::fprintf(stderr, "Delay parameter will NOT be applied to Cut&Merge\n");
                 /*
                 for (int i = 0; i < cmd.cutMerge.section.size(); i++) {
                     cmd.cutMerge.section[i].begin += cmd.delay;
@@ -574,7 +574,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             cmd.delay = (int32_t)std::round(((double)cmd.delay * cmd.resync));
 
             if (cmd.cutMerge.doCutMerge) {
-                std::printf("Resync parameter will NOT be applied to Cut&Merge\n");
+                std::fprintf(stderr, "Resync parameter will NOT be applied to Cut&Merge\n");
                 /*
                 for (int i = 0; i < cmd.cutMerge.section.size(); i++) {
                     cmd.cutMerge.section[i].begin *= cmd.resync;
@@ -679,7 +679,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     if (cmd.cutMerge.doCutMerge) {
         if (   cmd.cutMerge.format   == e_cutMergeFormat::vapoursynth
             && cmd.cutMerge.timeMode == e_cutMergeTimeMode::timestamp) {
-            std::printf("Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
+            std::fprintf(stderr, "Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
 
             return false;
         }
@@ -719,13 +719,13 @@ int main(int32_t argc, char** argv)
 
 
     if (argc < 4) {
-        std::printf("%s", usageHelp);
+        std::fprintf(stderr, "%s", usageHelp);
         return -1;
     }
     t_cmd cmd = {};
 
     if (!ParseCMD(argc, argv, cmd)) {
-        std::printf("Error parsing input\r\n");
+        std::fprintf(stderr, "Error parsing input\n");
         return -1;
     }
 
@@ -740,12 +740,12 @@ int main(int32_t argc, char** argv)
 
     FILE* input = std::fopen(argv[1], "rb");
     if (input == nullptr) {
-        std::printf("Unable to open input file!");
+        std::fprintf(stderr, "Unable to open input file!\n");
         return -1;
     }
     FILE* output = std::fopen(argv[2], "wb");
     if (output == nullptr) {
-        std::printf("Unable to open output file!");
+        std::fprintf(stderr, "Unable to open output file!\n");
         std::fclose(input);
         return -1;
     }
@@ -792,7 +792,7 @@ int main(int32_t argc, char** argv)
             for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
                 header = ReadHeader(&buffer[start]);
                 if (header.header != 0x5047) {
-                    std::printf("Correct header not found at position %zd, abort!", start);
+                    std::fprintf(stderr, "Correct header not found at position %zd, abort!\n", start);
                     std::fclose(input);
                     std::fclose(output);
                     return -1;
@@ -848,13 +848,13 @@ int main(int32_t argc, char** argv)
 
                             if (pcs.numCompositionObject > 1) {
                                 t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                std::printf("Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                std::fprintf(stderr, "Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                             }
 
                             for (int i = 0; i < pcs.numCompositionObject; i++) {
                                 if (pcs.compositionObject[i].objectCroppedFlag == 0x40) {
                                     t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    std::printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::fprintf(stderr, "Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                                 }
 
                                 if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
@@ -909,7 +909,7 @@ int main(int32_t argc, char** argv)
                                 WriteHeader(zeroHeader, &zeroBuffer[pos]);
                                 pos += 13;
 
-                                std::printf("Writing %d bytes as first display set\n", pos);
+                                std::fprintf(stderr, "Writing %d bytes as first display set\n", pos);
                                 std::fwrite(zeroBuffer, pos, 1, output);
 
                                 //For Cut&Merge functionality we don't need to save the added segment as it
@@ -934,14 +934,14 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x17:
-                    //std::printf("WDS\r\n");
+                    //std::fprintf(stderr, "WDS\r\n");
                     fixPCS = false;
                     if (doMove || doCrop) {
                         wds = ReadWDS(&buffer[start + HEADER_SIZE]);
 
                         if (wds.numberOfWindows > 1) {
                             t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                            std::printf("Multiple windows at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                            std::fprintf(stderr, "Multiple windows at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                         }
 
                         if (doMove) {
@@ -963,7 +963,7 @@ int main(int32_t argc, char** argv)
 
                                     if (object->objectCroppedFlag == 0x40) {
                                         t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                        std::printf("Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Crop fields are not supported yet.\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                        std::fprintf(stderr, "Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Crop fields are not supported yet.\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                                         /*
                                         object->objCropHorPos += clampedDeltaX;
                                         object->objCropVerPos += clampedDeltaY;
@@ -990,8 +990,8 @@ int main(int32_t argc, char** argv)
                                 if (wndRect.width > screenRect.width
                                     || wndRect.height > screenRect.height) {
                                     t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    std::printf("Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
-                                    std::printf("Implement it!\r\n");
+                                    std::fprintf(stderr, "Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::fprintf(stderr, "Implement it!\n");
                                     /*
                                     pcs.width = wndRect.width;
                                     pcs.height = wndRect.height;
@@ -1001,7 +1001,7 @@ int main(int32_t argc, char** argv)
                                 else {
                                     if (!rectIsContained(screenRect, wndRect)) {
                                         t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                        std::printf("Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\r\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                        std::fprintf(stderr, "Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
 
                                         uint16_t wndRightPoint    = wndRect.x    + wndRect.width;
                                         uint16_t screenRightPoint = screenRect.x + screenRect.width;
@@ -1016,7 +1016,7 @@ int main(int32_t argc, char** argv)
                                         }
 
                                         if (corrHor + corrVer != 0) {
-                                            std::printf("Please check\r\n");
+                                            std::fprintf(stderr, "Please check\n");
                                         }
                                     }
                                 }

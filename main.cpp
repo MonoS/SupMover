@@ -142,6 +142,7 @@ struct t_PDS {
 };
 
 struct t_cmd {
+    bool trace = false;
     int32_t delay = 0;
     t_move move = {};
     t_crop crop = {};
@@ -508,7 +509,8 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
 
 }
 
-bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
+int ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
+    cmd.trace = false;
     cmd.delay = 0;
     cmd.move = {};
     cmd.crop = {};
@@ -516,23 +518,17 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     cmd.addZero = false;
     cmd.tonemap = 1;
 
-    int i = 3;
-
-    bool doSubcommand = false;
-    if (argc == 4) {
-        //backward compatibility
-        cmd.delay = (int32_t)std::round(atof(argv[3]) * MS_TO_PTS_MULT);
-        if (cmd.delay != 0) {
-            std::fprintf(stderr, "Running in backwards-compatibility mode\n");
-            return true;
-        }
-    }
+    int i = 1;
 
     while (i < argc) {
         std::string command = argv[i];
         toLower(command);
 
-        if (command == "delay" || command == "--delay") {
+        if (command == "--trace") {
+            cmd.trace = true;
+            i += 1;
+        }
+        else if (command == "--delay") {
             cmd.delay = (int32_t)round(atof(argv[i + 1]) * MS_TO_PTS_MULT);
             i += 2;
 
@@ -546,19 +542,19 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 */
             }
         }
-        else if (command == "move" || command == "--move") {
+        else if (command == "--move") {
             cmd.move.deltaX = atoi(argv[i + 1]);
             cmd.move.deltaY = atoi(argv[i + 2]);
             i += 3;
         }
-        else if (command == "crop" || command == "--crop") {
+        else if (command == "--crop") {
             cmd.crop.left   = atoi(argv[i + 1]);
             cmd.crop.top    = atoi(argv[i + 2]);
             cmd.crop.right  = atoi(argv[i + 3]);
             cmd.crop.bottom = atoi(argv[i + 4]);
             i += 5;
         }
-        else if (command == "resync" || command == "--resync") {
+        else if (command == "--resync") {
             std::string strFactor = argv[i + 1];
             size_t idx = strFactor.find("/");
             if (idx != SIZE_MAX) {
@@ -585,19 +581,19 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             i += 2;
         }
-        else if (command == "add_zero" || command == "--add_zero") {
+        else if (command == "--add_zero") {
             cmd.addZero = true;
             i += 1;
         }
-        else if (command == "tonemap" || command == "--tonemap") {
+        else if (command == "--tonemap") {
             cmd.tonemap = std::atof(argv[i + 1]);
             i += 2;
         }
-        else if (command == "cut_merge" || command == "--cut_merge") {
+        else if (command == "--cut_merge") {
             cmd.cutMerge.doCutMerge = true;
             i++;
         }
-        else if (command == "format" || command == "--format") {
+        else if (command == "--format") {
             std::string formatMode = argv[i + 1];
             toLower(formatMode);
 
@@ -614,11 +610,11 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 cmd.cutMerge.format = e_cutMergeFormat::remap;
             }
             else {
-                return false;
+                return -1;
             }
             i += 2;
         }
-        else if (command == "list" || command == "--list") {
+        else if (command == "--list") {
             std::string list = argv[i + 1];
             toLower(list);
 
@@ -626,7 +622,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             i += 2;
         }
-        else if (command == "timemode" || command == "--timemode") {
+        else if (command == "--timemode") {
             std::string timemode = argv[i + 1];
             toLower(timemode);
 
@@ -653,12 +649,12 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 cmd.cutMerge.timeMode = e_cutMergeTimeMode::timestamp;
             }
             else {
-                return false;
+                return -1;
             }
 
             i += 2;
         }
-        else if (command == "fixmode" || command == "--fixmode") {
+        else if (command == "--fixmode") {
             std::string fixmode = argv[i + 1];
             toLower(fixmode);
 
@@ -672,7 +668,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             i += 2;
         }
         else {
-            return false;
+            break;
         }
     }
 
@@ -681,20 +677,21 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             && cmd.cutMerge.timeMode == e_cutMergeTimeMode::timestamp) {
             std::fprintf(stderr, "Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
 
-            return false;
+            return -1;
         }
 
         if (!parseCutMerge(&cmd.cutMerge)) {
-            return false;
+            return -1;
         }
     }
 
-    return true;
+    return i;
 }
 
-const char* usageHelp = R"(Usage:  supmover <input.sup> <output.sup> [OPTIONS ...]
+const char* usageHelp = R"(Usage:  SupMover [OPTIONS ...] <input.sup> [<output.sup>]
 
 OPTIONS:
+  --trace
   --delay <ms>
   --move <delta x> <delta y>
   --crop <left> <top> <right> <bottom>
@@ -718,13 +715,14 @@ int main(int32_t argc, char** argv)
     t_header header;
 
 
-    if (argc < 4) {
+    if (argc < 3) {
         std::fprintf(stderr, "%s", usageHelp);
         return -1;
     }
     t_cmd cmd = {};
 
-    if (!ParseCMD(argc, argv, cmd)) {
+    int argvIndex = ParseCMD(argc, argv, cmd);
+    if (argvIndex < 0) {
         std::fprintf(stderr, "Error parsing input\n");
         return -1;
     }
@@ -736,18 +734,26 @@ int main(int32_t argc, char** argv)
     bool doResync  = cmd.resync != 1;
     bool doTonemap = cmd.tonemap != 1;
 
-    bool doSomething = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
+    bool doModification = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
+    bool doAnalysis = cmd.trace;
 
-    FILE* input = std::fopen(argv[1], "rb");
+    FILE* input = std::fopen(argv[argvIndex++], "rb");
     if (input == nullptr) {
         std::fprintf(stderr, "Unable to open input file!\n");
         return -1;
     }
-    FILE* output = std::fopen(argv[2], "wb");
-    if (output == nullptr) {
-        std::fprintf(stderr, "Unable to open output file!\n");
-        std::fclose(input);
-        return -1;
+    FILE* output = nullptr;
+    if (doModification) {
+        if (argc <= argvIndex) {
+            std::fprintf(stderr, "Specified options require an output file!\n");
+            return -1;
+        }
+        output = std::fopen(argv[argvIndex++], "wb");
+        if (output == nullptr) {
+            std::fprintf(stderr, "Unable to open output file!\n");
+            std::fclose(input);
+            return -1;
+        }
     }
 
     std::fseek(input, 0, SEEK_END);
@@ -762,7 +768,7 @@ int main(int32_t argc, char** argv)
         }
 
         std::fread(buffer, size, 1, input);
-        if (doSomething) {
+        if (doModification || doAnalysis) {
             size_t start = 0;
 
             t_rect screenRect = {};
@@ -1177,7 +1183,9 @@ int main(int32_t argc, char** argv)
             }
         }
 
-        std::fwrite(newBuffer, newSize, 1, output);
+        if (doModification) {
+            std::fwrite(newBuffer, newSize, 1, output);
+        }
     }
 
     std::fclose(input);

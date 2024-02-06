@@ -512,14 +512,6 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
 }
 
 bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
-    cmd.trace = false;
-    cmd.delay = 0;
-    cmd.move = {};
-    cmd.crop = {};
-    cmd.resync = 1;
-    cmd.addZero = false;
-    cmd.tonemap = 1;
-
     int i = 1;
 
     cmd.inputFile = argv[i++];

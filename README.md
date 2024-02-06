@@ -3,7 +3,7 @@ SupMover - Shift timings and Screen Area of PGS/Sup subtitle
 
 # Usage
 ```
-Usage:  SupMover [OPTIONS ...] <input.sup> [<output.sup>]
+Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
   --trace

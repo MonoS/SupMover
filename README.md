@@ -18,7 +18,7 @@ OPTIONS:
 CUT&MERGE OPTIONS:
   --list <list of sections>
   --format (secut | (vapoursynth | vs) | (avisynth | avs) | remap)
-  --timemode (ms | frame | timestamp)
+  --timemode (ms | frame (<num>/<den> | <fps>) | timestamp)
   --fixmode (cut | (delete | del))
 ```
 

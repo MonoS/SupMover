@@ -626,7 +626,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 cmd.cutMerge.timeMode = e_cutMergeTimeMode::ms;
             }
             else if (timemode == "frame") {
-                if (remaining < 1) return false;
+                if (remaining < 2) return false;
                 cmd.cutMerge.timeMode = e_cutMergeTimeMode::frame;
                 std::string strFactor = argv[i];
 
@@ -708,7 +708,7 @@ OPTIONS:
 CUT&MERGE OPTIONS:
   --list <list of sections>
   --format (secut | (vapoursynth | vs) | (avisynth | avs) | remap)
-  --timemode (ms | frame | timestamp)
+  --timemode (ms | frame (<num>/<den> | <fps>) | timestamp)
   --fixmode (cut | (delete | del))
 
 Delay and resync command are executed in the order supplied.

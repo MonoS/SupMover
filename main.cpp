@@ -141,6 +141,16 @@ struct t_PDS {
     uint8_t paletteNum; //not in format, only used internally
 };
 
+struct t_ODS {
+    uint16_t objectID;
+    uint8_t  objectVersionNumber;
+    uint8_t  lastInSequenceFlag;
+    uint32_t dataLength;
+    uint16_t width;
+    uint16_t height;
+    //uint8_t* data;
+};
+
 struct t_cmd {
     const char* inputFile = nullptr;
     const char* outputFile = nullptr;
@@ -317,6 +327,19 @@ void WritePDS(t_PDS pds, uint8_t* buffer) {
         *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pds.palette[i].paletteCr;
         *((uint8_t*)(&buffer[bufferStartIdx + 4])) = pds.palette[i].paletteA;
     }
+}
+
+t_ODS ReadODS(uint8_t* buffer) {
+    t_ODS ods;
+
+    ods.objectID            = swapEndianness(*(uint16_t*)&buffer[0]);
+    ods.objectVersionNumber =                *(uint8_t*) &buffer[2];
+    ods.lastInSequenceFlag  =                *(uint8_t*) &buffer[3];
+    ods.dataLength          = swapEndianness(*(uint32_t*)&buffer[3]) & 0xffffff;
+    ods.width               = swapEndianness(*(uint16_t*)&buffer[7]);
+    ods.height              = swapEndianness(*(uint16_t*)&buffer[9]);
+
+    return ods;
 }
 
 void toLower(std::string& str) {
@@ -780,6 +803,7 @@ int main(int32_t argc, char** argv)
             t_WDS wds = {};
             t_PCS pcs = {};
             t_PDS pds = {};
+            t_ODS ods = {};
 
             size_t offsetCurrPCS = 0;
             bool fixPCS = false;
@@ -849,8 +873,20 @@ int main(int32_t argc, char** argv)
                     break;
                 case 0x15:
                     if (cmd.trace) {
+                        ods = ReadODS(&buffer[start + HEADER_SIZE]);
+
                         std::printf("  + ODS Segment: offset %s\n", offsetString);
-                        // TODO: Print other fields?
+                        std::printf("    + Object ID: %u\n", ods.objectID);
+                        std::printf("    + Version: %u\n", ods.objectVersionNumber);
+                        if (ods.lastInSequenceFlag != 0xC0) {
+                            std::printf("    + Sequence flag: ");
+                            switch (ods.lastInSequenceFlag) {
+                                case 0x40: std::printf("Last\n"); break;
+                                case 0x80: std::printf("First\n"); break;
+                                default:   std::printf("%#x\n", ods.lastInSequenceFlag); break;
+                            }
+                        }
+                        std::printf("    + Size: %ux%u\n", ods.width, ods.height);
                     }
                     break;
                 case 0x16:
@@ -1001,7 +1037,7 @@ int main(int32_t argc, char** argv)
                                 std::printf("    + Window\n");
                                 t_window window = wds.windows[i];
                                 std::printf("      + Window ID: %u\n", window.windowID);
-                                std::printf("      + Window frame: %u,%u,%u,%u\n", window.WindowsHorPos, window.WindowsVerPos, window.WindowsWidth, window.WindowsHeight);
+                                std::printf("      + Frame: %u,%u %ux%u\n", window.WindowsHorPos, window.WindowsVerPos, window.WindowsWidth, window.WindowsHeight);
                             }
                         }
 

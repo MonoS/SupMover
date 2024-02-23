@@ -1032,7 +1032,7 @@ int main(int32_t argc, char** argv)
                     if (cmd.trace || doMove || doCrop) {
                         wds = ReadWDS(&buffer[start + HEADER_SIZE]);
 
-                        if (wds.numberOfWindows > 1) {
+                        if (wds.numberOfWindows > 1 && doModification) {
                             std::fprintf(stderr, "Multiple windows at timestamp %s! Please Check!\n", timestampString);
                         }
 

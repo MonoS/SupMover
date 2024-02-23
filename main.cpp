@@ -546,7 +546,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
         int remaining = argc - i;
         bool recognizedOption = true;
 
-        if (arg == "--trace") {
+        if (arg == "trace" || arg == "--trace") {
             cmd.trace = true;
         }
         else if (arg == "delay" || arg == "--delay") {

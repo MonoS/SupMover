@@ -851,13 +851,17 @@ int main(int32_t argc, char** argv)
 
                 switch (header.segmentType) {
                 case 0x14:
+                    if (cmd.trace || doTonemap) {
+                        pds = ReadPDS(&buffer[start + HEADER_SIZE], header.dataLength);
+                    }
+
                     if (cmd.trace) {
                         std::printf("  + PDS Segment: offset %s\n", offsetString);
-                        // TODO: Print other fields?
+                        std::printf("    + Palette ID: %u\n", pds.paletteID);
+                        std::printf("    + Version: %u\n", pds.paletteVersionNumber);
+                        std::printf("    + Palette entries: %u\n", pds.paletteNum);
                     }
                     if (doTonemap) {
-                        pds = ReadPDS(&buffer[start + HEADER_SIZE], header.dataLength);
-
                         for (int i = 0; i < pds.paletteNum; i++) {
                             //convert Y from TV level (16-235) to full range
                             double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);

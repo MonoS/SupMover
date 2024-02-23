@@ -1041,7 +1041,8 @@ int main(int32_t argc, char** argv)
                                 std::printf("    + Window\n");
                                 t_window window = wds.windows[i];
                                 std::printf("      + Window ID: %u\n", window.windowID);
-                                std::printf("      + Frame: %u,%u %ux%u\n", window.WindowsHorPos, window.WindowsVerPos, window.WindowsWidth, window.WindowsHeight);
+                                std::printf("      + Position: %u,%u\n", window.WindowsHorPos, window.WindowsVerPos);
+                                std::printf("      + Size: %ux%u\n", window.WindowsWidth, window.WindowsHeight);
                             }
                         }
 

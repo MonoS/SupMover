@@ -915,8 +915,8 @@ int main(int32_t argc, char** argv)
                             }
                             if (pcs.paletteUpdFlag == 0x80) {
                                 std::printf("    + Palette update: True\n");
-                                std::printf("    + Palette ID: %u\n", pcs.paletteID);
                             }
+                            std::printf("    + Palette ID: %u\n", pcs.paletteID);
                             for (int i = 0; i < pcs.numCompositionObject; i++) {
                                 std::printf("    + Composition object\n");
                                 t_compositionObject object = pcs.compositionObject[i];

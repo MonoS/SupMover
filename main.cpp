@@ -253,12 +253,10 @@ t_PCS ReadPCS(uint8_t* buffer) {
         pcs.compositionObject[i].objectCroppedFlag =                *(uint8_t*) &buffer[bufferStartIdx + 3];
         pcs.compositionObject[i].objectHorPos      = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 4]);
         pcs.compositionObject[i].objectVerPos      = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 6]);
-        /*
-        pcs.compositionObject.objCropHorPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
-        pcs.compositionObject.objCropVerPos = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
-        pcs.compositionObject.objCropWidth = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 12]);
-        pcs.compositionObject.objCropHeight = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 14]);
-        */
+        pcs.compositionObject[i].objCropHorPos     = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
+        pcs.compositionObject[i].objCropVerPos     = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
+        pcs.compositionObject[i].objCropWidth      = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 12]);
+        pcs.compositionObject[i].objCropHeight     = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 14]);
     }
 
     return pcs;
@@ -277,19 +275,16 @@ void WritePCS(t_PCS pcs, uint8_t* buffer) {
     for (int i = 0; i < pcs.numCompositionObject; i++) {
         size_t bufferStartIdx = 11 + (size_t)i * 8;
 
-        *((uint16_t*)(&buffer[bufferStartIdx + 0])) = swapEndianness(pcs.compositionObject[i].objectID);
-        *((uint8_t*) (&buffer[bufferStartIdx + 2])) =                pcs.compositionObject[i].windowID;
-        *((uint8_t*) (&buffer[bufferStartIdx + 3])) =                pcs.compositionObject[i].objectCroppedFlag;
-        *((uint16_t*)(&buffer[bufferStartIdx + 4])) = swapEndianness(pcs.compositionObject[i].objectHorPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 6])) = swapEndianness(pcs.compositionObject[i].objectVerPos);
+        *((uint16_t*)(&buffer[bufferStartIdx + 0]))  = swapEndianness(pcs.compositionObject[i].objectID);
+        *((uint8_t*) (&buffer[bufferStartIdx + 2]))  =                pcs.compositionObject[i].windowID;
+        *((uint8_t*) (&buffer[bufferStartIdx + 3]))  =                pcs.compositionObject[i].objectCroppedFlag;
+        *((uint16_t*)(&buffer[bufferStartIdx + 4]))  = swapEndianness(pcs.compositionObject[i].objectHorPos);
+        *((uint16_t*)(&buffer[bufferStartIdx + 6]))  = swapEndianness(pcs.compositionObject[i].objectVerPos);
+        *((uint16_t*)(&buffer[bufferStartIdx + 8]))  = swapEndianness(pcs.compositionObject[i].objCropHorPos);
+        *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject[i].objCropVerPos);
+        *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject[i].objCropWidth);
+        *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject[i].objCropHeight);
     }
-
-    /*
-    *((uint16_t*)(&buffer[bufferStartIdx + 8])) = swapEndianness(pcs.compositionObject.objCropHorPos);
-    *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject.objCropVerPos);
-    *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject.objCropWidth);
-    *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject.objCropHeight);
-    */
 }
 
 t_PDS ReadPDS(uint8_t* buffer, size_t segment_size) {
@@ -1068,11 +1063,8 @@ int main(int32_t argc, char** argv)
                                     if (object->windowID != window->windowID) continue;
 
                                     if (object->objectCroppedFlag & 0x80) {
-                                        std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Crop fields are not supported yet.\n", timestampString);
-                                        /*
                                         object->objCropHorPos += clampedDeltaX;
                                         object->objCropVerPos += clampedDeltaY;
-                                         */
                                     }
                                     object->objectHorPos += clampedDeltaX;
                                     object->objectVerPos += clampedDeltaY;

@@ -923,9 +923,13 @@ int main(int32_t argc, char** argv)
                                 std::printf("      + Object ID: %u\n", object.objectID);
                                 std::printf("      + Window ID: %u\n", object.windowID);
                                 std::printf("      + Position: %u,%u\n", object.objectHorPos, object.objectVerPos);
-                                if (object.objectCroppedFlag == 0x40) {
-                                    std::printf("      + Object cropped: True\n");
-                                    // TODO: Print crop fields
+                                if (object.objectCroppedFlag & 0x40) {
+                                    std::printf("      + Forced display: True\n");
+                                }
+                                if (object.objectCroppedFlag & 0x80) {
+                                    std::printf("      + Cropped: True\n");
+                                    std::printf("      + Cropped position: %u,%u\n", object.objCropHorPos, object.objCropVerPos);
+                                    std::printf("      + Cropped size: %ux%u\n", object.objCropWidth, object.objCropHeight);
                                 }
                             }
                         }
@@ -944,7 +948,7 @@ int main(int32_t argc, char** argv)
                             }
 
                             for (int i = 0; i < pcs.numCompositionObject; i++) {
-                                if (pcs.compositionObject[i].objectCroppedFlag == 0x40) {
+                                if (pcs.compositionObject[i].objectCroppedFlag & 0x80) {
                                     std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Implement it!\n", timestampString);
                                 }
 
@@ -1063,7 +1067,7 @@ int main(int32_t argc, char** argv)
                                     t_compositionObject *object = &pcs.compositionObject[j];
                                     if (object->windowID != window->windowID) continue;
 
-                                    if (object->objectCroppedFlag == 0x40) {
+                                    if (object->objectCroppedFlag & 0x80) {
                                         std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Crop fields are not supported yet.\n", timestampString);
                                         /*
                                         object->objCropHorPos += clampedDeltaX;

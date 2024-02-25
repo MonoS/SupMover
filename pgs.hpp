@@ -6,8 +6,12 @@ struct t_header {
     uint32_t dts;
     uint8_t  segmentType;
     uint16_t dataLength;
+
+    static t_header read(uint8_t*);
+    void write(uint8_t*);
 };
 size_t const HEADER_SIZE = 13;
+
 
 struct t_window {
     uint8_t  id;
@@ -19,7 +23,11 @@ struct t_window {
 struct t_WDS {
     uint8_t  numberOfWindows;
     t_window windows[256];
+
+    static t_WDS read(uint8_t*);
+    void write(uint8_t*);
 };
+
 
 enum e_objectFlags : uint8_t {
     none    = 0x00,
@@ -47,7 +55,11 @@ struct t_PCS {
     uint8_t  paletteID;
     uint8_t  numberOfCompositionObjects;
     t_compositionObject compositionObjects[256];
+
+    static t_PCS read(uint8_t*);
+    void write(uint8_t*);
 };
+
 
 struct t_palette {
     uint8_t entryID;
@@ -61,7 +73,11 @@ struct t_PDS {
     uint8_t versionNumber;
     t_palette palettes[255];
     uint8_t numberOfPalettes; //not in format, only used internally
+
+    static t_PDS read(uint8_t*, size_t);
+    void write(uint8_t*);
 };
+
 
 struct t_ODS {
     uint16_t id;
@@ -71,6 +87,8 @@ struct t_ODS {
     uint16_t width;
     uint16_t height;
     //uint8_t* data;
+
+    static t_ODS read(uint8_t*);
 };
 
 
@@ -92,8 +110,7 @@ uint32_t swapEndianness(uint32_t input) {
     return output;
 }
 
-
-t_header readHeader(uint8_t* buffer) {
+t_header t_header::read(uint8_t* buffer) {
     t_header header = {};
 
     header.header      = swapEndianness(*(uint16_t*)&buffer[0]);
@@ -105,16 +122,16 @@ t_header readHeader(uint8_t* buffer) {
     return header;
 }
 
-void writeHeader(t_header header, uint8_t* buffer) {
-    *((uint16_t*)(&buffer[0]))  = swapEndianness(header.header);
-    *((uint32_t*)(&buffer[2]))  = swapEndianness(header.pts);
-    *((uint32_t*)(&buffer[6]))  = swapEndianness(header.dts);
-    *((uint8_t*) (&buffer[10])) =                header.segmentType;
-    *((uint16_t*)(&buffer[11])) = swapEndianness(header.dataLength);
+void t_header::write(uint8_t* buffer) {
+    *((uint16_t*)(&buffer[0]))  = swapEndianness(header);
+    *((uint32_t*)(&buffer[2]))  = swapEndianness(pts);
+    *((uint32_t*)(&buffer[6]))  = swapEndianness(dts);
+    *((uint8_t*) (&buffer[10])) =                segmentType;
+    *((uint16_t*)(&buffer[11])) = swapEndianness(dataLength);
 }
 
 
-t_WDS readWDS(uint8_t* buffer) {
+t_WDS t_WDS::read(uint8_t* buffer) {
     t_WDS wds;
 
     wds.numberOfWindows = *(uint8_t*)&buffer[0];
@@ -131,21 +148,21 @@ t_WDS readWDS(uint8_t* buffer) {
     return wds;
 }
 
-void writeWDS(t_WDS wds, uint8_t* buffer) {
-    *((uint8_t*)(&buffer[0])) = wds.numberOfWindows;
-    for (int i = 0; i < wds.numberOfWindows; i++) {
+void t_WDS::write(uint8_t* buffer) {
+    *((uint8_t*)(&buffer[0])) = numberOfWindows;
+    for (int i = 0; i < numberOfWindows; i++) {
         size_t bufferStartIdx = 1 + (size_t)i * 9;
 
-        *((uint8_t*) (&buffer[bufferStartIdx + 0])) =                wds.windows[i].id;
-        *((uint16_t*)(&buffer[bufferStartIdx + 1])) = swapEndianness(wds.windows[i].horizontalPosition);
-        *((uint16_t*)(&buffer[bufferStartIdx + 3])) = swapEndianness(wds.windows[i].verticalPosition);
-        *((uint16_t*)(&buffer[bufferStartIdx + 5])) = swapEndianness(wds.windows[i].width);
-        *((uint16_t*)(&buffer[bufferStartIdx + 7])) = swapEndianness(wds.windows[i].height);
+        *((uint8_t*) (&buffer[bufferStartIdx + 0])) =                windows[i].id;
+        *((uint16_t*)(&buffer[bufferStartIdx + 1])) = swapEndianness(windows[i].horizontalPosition);
+        *((uint16_t*)(&buffer[bufferStartIdx + 3])) = swapEndianness(windows[i].verticalPosition);
+        *((uint16_t*)(&buffer[bufferStartIdx + 5])) = swapEndianness(windows[i].width);
+        *((uint16_t*)(&buffer[bufferStartIdx + 7])) = swapEndianness(windows[i].height);
     }
 }
 
 
-t_PCS readPCS(uint8_t* buffer) {
+t_PCS t_PCS::read(uint8_t* buffer) {
     t_PCS pcs;
 
     pcs.width                      = swapEndianness(*(uint16_t*)&buffer[0]);
@@ -177,28 +194,28 @@ t_PCS readPCS(uint8_t* buffer) {
     return pcs;
 }
 
-void writePCS(t_PCS pcs, uint8_t* buffer) {
-    *((uint16_t*)(&buffer[0]))  = swapEndianness(pcs.width);
-    *((uint16_t*)(&buffer[2]))  = swapEndianness(pcs.height);
-    *((uint8_t*) (&buffer[4]))  =                pcs.frameRate;
-    *((uint16_t*)(&buffer[5]))  = swapEndianness(pcs.compositionNumber);
-    *((uint8_t*) (&buffer[7]))  =                pcs.compositionState;
-    *((uint8_t*) (&buffer[8]))  =                pcs.paletteUpdateFlag;
-    *((uint8_t*) (&buffer[9]))  =                pcs.paletteID;
-    *((uint8_t*) (&buffer[10])) =                pcs.numberOfCompositionObjects;
+void t_PCS::write(uint8_t* buffer) {
+    *((uint16_t*)(&buffer[0]))  = swapEndianness(width);
+    *((uint16_t*)(&buffer[2]))  = swapEndianness(height);
+    *((uint8_t*) (&buffer[4]))  =                frameRate;
+    *((uint16_t*)(&buffer[5]))  = swapEndianness(compositionNumber);
+    *((uint8_t*) (&buffer[7]))  =                compositionState;
+    *((uint8_t*) (&buffer[8]))  =                paletteUpdateFlag;
+    *((uint8_t*) (&buffer[9]))  =                paletteID;
+    *((uint8_t*) (&buffer[10])) =                numberOfCompositionObjects;
 
     size_t bufferStartIdx = 11;
-    for (int i = 0; i < pcs.numberOfCompositionObjects; i++) {
-        *((uint16_t*)(&buffer[bufferStartIdx + 0]))  = swapEndianness(pcs.compositionObjects[i].objectID);
-        *((uint8_t*) (&buffer[bufferStartIdx + 2]))  =                pcs.compositionObjects[i].windowID;
-        *((uint8_t*) (&buffer[bufferStartIdx + 3]))  =                pcs.compositionObjects[i].croppedAndForcedFlag;
-        *((uint16_t*)(&buffer[bufferStartIdx + 4]))  = swapEndianness(pcs.compositionObjects[i].horizontalPosition);
-        *((uint16_t*)(&buffer[bufferStartIdx + 6]))  = swapEndianness(pcs.compositionObjects[i].verticalPosition);
-        if (pcs.compositionObjects[i].croppedAndForcedFlag & e_objectFlags::cropped) {
-            *((uint16_t*)(&buffer[bufferStartIdx + 8]))  = swapEndianness(pcs.compositionObjects[i].croppedHorizontalPosition);
-            *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObjects[i].croppedVerticalPosition);
-            *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObjects[i].croppedWidth);
-            *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObjects[i].croppedHeight);
+    for (int i = 0; i < numberOfCompositionObjects; i++) {
+        *((uint16_t*)(&buffer[bufferStartIdx + 0]))  = swapEndianness(compositionObjects[i].objectID);
+        *((uint8_t*) (&buffer[bufferStartIdx + 2]))  =                compositionObjects[i].windowID;
+        *((uint8_t*) (&buffer[bufferStartIdx + 3]))  =                compositionObjects[i].croppedAndForcedFlag;
+        *((uint16_t*)(&buffer[bufferStartIdx + 4]))  = swapEndianness(compositionObjects[i].horizontalPosition);
+        *((uint16_t*)(&buffer[bufferStartIdx + 6]))  = swapEndianness(compositionObjects[i].verticalPosition);
+        if (compositionObjects[i].croppedAndForcedFlag & e_objectFlags::cropped) {
+            *((uint16_t*)(&buffer[bufferStartIdx + 8]))  = swapEndianness(compositionObjects[i].croppedHorizontalPosition);
+            *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(compositionObjects[i].croppedVerticalPosition);
+            *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(compositionObjects[i].croppedWidth);
+            *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(compositionObjects[i].croppedHeight);
             bufferStartIdx += 8;
         }
         bufferStartIdx += 8;
@@ -206,7 +223,7 @@ void writePCS(t_PCS pcs, uint8_t* buffer) {
 }
 
 
-t_PDS readPDS(uint8_t* buffer, size_t segment_size) {
+t_PDS t_PDS::read(uint8_t* buffer, size_t segment_size) {
     t_PDS pds;
 
     pds.id            = *(uint8_t*)&buffer[0];
@@ -227,23 +244,23 @@ t_PDS readPDS(uint8_t* buffer, size_t segment_size) {
     return pds;
 }
 
-void writePDS(t_PDS pds, uint8_t* buffer) {
-    *((uint8_t*)(&buffer[0])) = pds.id;
-    *((uint8_t*)(&buffer[1])) = pds.versionNumber;
+void t_PDS::write(uint8_t* buffer) {
+    *((uint8_t*)(&buffer[0])) = id;
+    *((uint8_t*)(&buffer[1])) = versionNumber;
 
-    for (int i = 0; i < pds.numberOfPalettes; i++) {
+    for (int i = 0; i < numberOfPalettes; i++) {
         size_t bufferStartIdx = 2 + (size_t)i * 5;
 
-        *((uint8_t*)(&buffer[bufferStartIdx + 0])) = pds.palettes[i].entryID;
-        *((uint8_t*)(&buffer[bufferStartIdx + 1])) = pds.palettes[i].valueY;
-        *((uint8_t*)(&buffer[bufferStartIdx + 2])) = pds.palettes[i].valueCb;
-        *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pds.palettes[i].valueCr;
-        *((uint8_t*)(&buffer[bufferStartIdx + 4])) = pds.palettes[i].valueA;
+        *((uint8_t*)(&buffer[bufferStartIdx + 0])) = palettes[i].entryID;
+        *((uint8_t*)(&buffer[bufferStartIdx + 1])) = palettes[i].valueY;
+        *((uint8_t*)(&buffer[bufferStartIdx + 2])) = palettes[i].valueCb;
+        *((uint8_t*)(&buffer[bufferStartIdx + 3])) = palettes[i].valueCr;
+        *((uint8_t*)(&buffer[bufferStartIdx + 4])) = palettes[i].valueA;
     }
 }
 
 
-t_ODS readODS(uint8_t* buffer) {
+t_ODS t_ODS::read(uint8_t* buffer) {
     t_ODS ods;
 
     ods.id            = swapEndianness(*(uint16_t*)&buffer[0]);

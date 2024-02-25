@@ -575,7 +575,7 @@ int main(int32_t argc, char** argv)
 
 
             for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
-                header = readHeader(&buffer[start]);
+                header = t_header::read(&buffer[start]);
                 if (header.header != 0x5047) {
                     std::fprintf(stderr, "Correct header not found at position %zd, abort!\n", start);
                     std::fclose(input);
@@ -597,13 +597,13 @@ int main(int32_t argc, char** argv)
                 }
 
                 if (doResync || doDelay) {
-                    writeHeader(header, &buffer[start]);
+                    header.write(&buffer[start]);
                 }
 
                 switch (header.segmentType) {
                 case 0x14:
                     if (cmd.trace || doTonemap) {
-                        pds = readPDS(&buffer[start + HEADER_SIZE], header.dataLength);
+                        pds = t_PDS::read(&buffer[start + HEADER_SIZE], header.dataLength);
                     }
 
                     if (cmd.trace) {
@@ -623,12 +623,12 @@ int main(int32_t argc, char** argv)
                             pds.palettes[i].valueY = (uint8_t)newY;
                         }
 
-                        writePDS(pds, &buffer[start + HEADER_SIZE]);
+                        pds.write(&buffer[start + HEADER_SIZE]);
                     }
                     break;
                 case 0x15:
                     if (cmd.trace) {
-                        ods = readODS(&buffer[start + HEADER_SIZE]);
+                        ods = t_ODS::read(&buffer[start + HEADER_SIZE]);
 
                         std::printf("  + ODS Segment: offset %s\n", offsetString);
                         std::printf("    + Object ID: %u\n", ods.id);
@@ -651,7 +651,7 @@ int main(int32_t argc, char** argv)
                         std::printf("  + PCS Segment: offset %s\n", offsetString);
                     }
                     if (cmd.trace || doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
-                        pcs = readPCS(&buffer[start + HEADER_SIZE]);
+                        pcs = t_PCS::read(&buffer[start + HEADER_SIZE]);
                         offsetCurrPCS = start;
 
                         if (cmd.trace) {
@@ -726,19 +726,19 @@ int main(int32_t argc, char** argv)
                                 t_header zeroHeader(header);
                                 zeroHeader.pts = 0;
                                 zeroHeader.dataLength = 11; //Length of upcoming PCS
-                                writeHeader(zeroHeader, &zeroBuffer[pos]);
+                                zeroHeader.write(&zeroBuffer[pos]);
                                 pos += 13;
                                 t_PCS zeroPcs(pcs);
                                 zeroPcs.compositionState = 0;
                                 zeroPcs.paletteUpdateFlag = 0;
                                 zeroPcs.paletteID = 0;
                                 zeroPcs.numberOfCompositionObjects = 0;
-                                writePCS(zeroPcs, &zeroBuffer[pos]);
+                                zeroPcs.write(&zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
                                 zeroHeader.segmentType = 0x17; // WDS
                                 zeroHeader.dataLength = 10; //Length of upcoming WDS
-                                writeHeader(zeroHeader, &zeroBuffer[pos]);
+                                zeroHeader.write(&zeroBuffer[pos]);
                                 pos += 13;
                                 t_WDS zeroWds;
                                 zeroWds.numberOfWindows = 1;
@@ -747,12 +747,12 @@ int main(int32_t argc, char** argv)
                                 zeroWds.windows[0].verticalPosition = 0;
                                 zeroWds.windows[0].width = 0;
                                 zeroWds.windows[0].height = 0;
-                                writeWDS(zeroWds, &zeroBuffer[pos]);
+                                zeroWds.write(&zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
                                 zeroHeader.segmentType = 0x80; // END
                                 zeroHeader.dataLength = 0; //Length of upcoming END
-                                writeHeader(zeroHeader, &zeroBuffer[pos]);
+                                zeroHeader.write(&zeroBuffer[pos]);
                                 pos += 13;
 
                                 std::fprintf(stderr, "Writing %d bytes as first display set\n", pos);
@@ -776,7 +776,7 @@ int main(int32_t argc, char** argv)
                             }
                         }
 
-                        writePCS(pcs, &buffer[start + HEADER_SIZE]);
+                        pcs.write(&buffer[start + HEADER_SIZE]);
                     }
                     break;
                 case 0x17:
@@ -785,7 +785,7 @@ int main(int32_t argc, char** argv)
                     }
                     fixPCS = false;
                     if (cmd.trace || doMove || doCrop) {
-                        wds = readWDS(&buffer[start + HEADER_SIZE]);
+                        wds = t_WDS::read(&buffer[start + HEADER_SIZE]);
 
                         if (wds.numberOfWindows > 1 && doModification) {
                             std::fprintf(stderr, "Multiple windows at timestamp %s! Please Check!\n", timestampString);
@@ -897,9 +897,9 @@ int main(int32_t argc, char** argv)
                         }
 
                         if (fixPCS) {
-                            writePCS(pcs, &buffer[offsetCurrPCS + HEADER_SIZE]);
+                            pcs.write(&buffer[offsetCurrPCS + HEADER_SIZE]);
                         }
-                        writeWDS(wds, &buffer[start + HEADER_SIZE]);
+                        wds.write(&buffer[start + HEADER_SIZE]);
 
                     }
                     break;
@@ -948,13 +948,13 @@ int main(int32_t argc, char** argv)
                     if (cutMerge_currentToSaveIdx >= cutMerge_compositionNumberToSave.size()) {
                         break;
                     }
-                    header = readHeader(&buffer[start]);
+                    header = t_header::read(&buffer[start]);
 
                     //For Cut&Merge we only need to handle the header (for the PTS), the PCS (to
                     //get the compositionNumber) and the END segment (to know when it finished)
                     if (header.segmentType == 0x16)
                     {
-                        pcs = readPCS(&buffer[start + HEADER_SIZE]);
+                        pcs = t_PCS::read(&buffer[start + HEADER_SIZE]);
                         if (!cutMerge_foundBegin) {
                             cutMerge_foundBegin = true;
                             cutMerge_currentBeginPTS = header.pts;
@@ -965,7 +965,7 @@ int main(int32_t argc, char** argv)
                                 cutMerge_offsetBeginCopy = start;
                                 cutMerge_currentSection = cmd.cutMerge.section[cutMerge_compositionNumberToSave[cutMerge_currentToSaveIdx].sectionIdx];
                                 pcs.compositionNumber = cutMerge_newCompositionNumber;
-                                writePCS(pcs, &buffer[start + HEADER_SIZE]);
+                                pcs.write(&buffer[start + HEADER_SIZE]);
                             }
                         }
                         else if (!cutMerge_foundEnd) {
@@ -974,7 +974,7 @@ int main(int32_t argc, char** argv)
                             if (cutMerge_keepSection) {
                                 pcs.compositionNumber = cutMerge_newCompositionNumber;
 
-                                writePCS(pcs, &buffer[start + HEADER_SIZE]);
+                                pcs.write(&buffer[start + HEADER_SIZE]);
                             }
                         }
                     }
@@ -993,7 +993,7 @@ int main(int32_t argc, char** argv)
 
                         header.pts -= cutMerge_currentSection.delay_until;
 
-                        writeHeader(header, &buffer[start]);
+                        header.write(&buffer[start]);
                     }
 
                     if (header.segmentType == 0x80)

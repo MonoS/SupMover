@@ -3,9 +3,10 @@ SupMover - Shift timings and Screen Area of PGS/Sup subtitle
 
 # Usage
 ```
-Usage:  SupMover <input.sup> <output.sup> [OPTIONS ...]
+Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
+  --trace
   --delay <ms>
   --move <delta x> <delta y>
   --crop <left> <top> <right> <bottom>
@@ -17,14 +18,13 @@ OPTIONS:
 CUT&MERGE OPTIONS:
   --list <list of sections>
   --format (secut | (vapoursynth | vs) | (avisynth | avs) | remap)
-  --timemode (ms | frame | timestamp)
+  --timemode (ms | frame (<num>/<den> | <fps>) | timestamp)
   --fixmode (cut | (delete | del))
 ```
 
-Old syntax, kept for backward compatibility:
-`SupMover <input.sup> <output.sup> <ms>`
-
 # Options
+* `--trace`
+  * Print contents and structure of input file segments
 * `--delay`
   * Apply a milliseconds delay, positive or negative, to all the subpic of the subtitle, it can be fractional as the SUP speficication have a precision of 1/90ms
 * `--resync`

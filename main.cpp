@@ -141,7 +141,20 @@ struct t_PDS {
     uint8_t paletteNum; //not in format, only used internally
 };
 
+struct t_ODS {
+    uint16_t objectID;
+    uint8_t  objectVersionNumber;
+    uint8_t  lastInSequenceFlag;
+    uint32_t dataLength;
+    uint16_t width;
+    uint16_t height;
+    //uint8_t* data;
+};
+
 struct t_cmd {
+    const char* inputFile = nullptr;
+    const char* outputFile = nullptr;
+    bool trace = false;
     int32_t delay = 0;
     t_move move = {};
     t_crop crop = {};
@@ -314,6 +327,19 @@ void WritePDS(t_PDS pds, uint8_t* buffer) {
         *((uint8_t*)(&buffer[bufferStartIdx + 3])) = pds.palette[i].paletteCr;
         *((uint8_t*)(&buffer[bufferStartIdx + 4])) = pds.palette[i].paletteA;
     }
+}
+
+t_ODS ReadODS(uint8_t* buffer) {
+    t_ODS ods;
+
+    ods.objectID            = swapEndianness(*(uint16_t*)&buffer[0]);
+    ods.objectVersionNumber =                *(uint8_t*) &buffer[2];
+    ods.lastInSequenceFlag  =                *(uint8_t*) &buffer[3];
+    ods.dataLength          = swapEndianness(*(uint32_t*)&buffer[3]) & 0xffffff;
+    ods.width               = swapEndianness(*(uint16_t*)&buffer[7]);
+    ods.height              = swapEndianness(*(uint16_t*)&buffer[9]);
+
+    return ods;
 }
 
 void toLower(std::string& str) {
@@ -509,32 +535,23 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
 }
 
 bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
-    cmd.delay = 0;
-    cmd.move = {};
-    cmd.crop = {};
-    cmd.resync = 1;
-    cmd.addZero = false;
-    cmd.tonemap = 1;
+    int i = 1;
 
-    int i = 3;
-
-    bool doSubcommand = false;
-    if (argc == 4) {
-        //backward compatibility
-        cmd.delay = (int32_t)std::round(atof(argv[3]) * MS_TO_PTS_MULT);
-        if (cmd.delay != 0) {
-            std::fprintf(stderr, "Running in backwards-compatibility mode\n");
-            return true;
-        }
-    }
+    cmd.inputFile = argv[i++];
+    bool foundStartOfOptions = false;
 
     while (i < argc) {
-        std::string command = argv[i];
-        toLower(command);
+        const char* argCStr = argv[i++];
+        std::string arg = argCStr;
+        int remaining = argc - i;
+        bool recognizedOption = true;
 
-        if (command == "delay" || command == "--delay") {
-            cmd.delay = (int32_t)round(atof(argv[i + 1]) * MS_TO_PTS_MULT);
-            i += 2;
+        if (arg == "trace" || arg == "--trace") {
+            cmd.trace = true;
+        }
+        else if (arg == "delay" || arg == "--delay") {
+            if (remaining < 1) return false;
+            cmd.delay = (int32_t)round(atof(argv[i++]) * MS_TO_PTS_MULT);
 
             if (cmd.cutMerge.doCutMerge) {
                 std::fprintf(stderr, "Delay parameter will NOT be applied to Cut&Merge\n");
@@ -546,20 +563,21 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 */
             }
         }
-        else if (command == "move" || command == "--move") {
-            cmd.move.deltaX = atoi(argv[i + 1]);
-            cmd.move.deltaY = atoi(argv[i + 2]);
-            i += 3;
+        else if (arg == "move" || arg == "--move") {
+            if (remaining < 2) return false;
+            cmd.move.deltaX = atoi(argv[i++]);
+            cmd.move.deltaY = atoi(argv[i++]);
         }
-        else if (command == "crop" || command == "--crop") {
-            cmd.crop.left   = atoi(argv[i + 1]);
-            cmd.crop.top    = atoi(argv[i + 2]);
-            cmd.crop.right  = atoi(argv[i + 3]);
-            cmd.crop.bottom = atoi(argv[i + 4]);
-            i += 5;
+        else if (arg == "crop" || arg == "--crop") {
+            if (remaining < 4) return false;
+            cmd.crop.left   = atoi(argv[i++]);
+            cmd.crop.top    = atoi(argv[i++]);
+            cmd.crop.right  = atoi(argv[i++]);
+            cmd.crop.bottom = atoi(argv[i++]);
         }
-        else if (command == "resync" || command == "--resync") {
-            std::string strFactor = argv[i + 1];
+        else if (arg == "resync" || arg == "--resync") {
+            if (remaining < 1) return false;
+            std::string strFactor = argv[i];
             size_t idx = strFactor.find("/");
             if (idx != SIZE_MAX) {
                 double num = std::atof(strFactor.substr(0, idx).c_str());
@@ -568,8 +586,9 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 cmd.resync = num / den;
             }
             else {
-                cmd.resync = std::atof(argv[i + 1]);
+                cmd.resync = std::atof(argv[i]);
             }
+            i++;
 
             cmd.delay = (int32_t)std::round(((double)cmd.delay * cmd.resync));
 
@@ -582,23 +601,20 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 }
                 */
             }
-
-            i += 2;
         }
-        else if (command == "add_zero" || command == "--add_zero") {
+        else if (arg == "add_zero" || arg == "--add_zero") {
             cmd.addZero = true;
-            i += 1;
         }
-        else if (command == "tonemap" || command == "--tonemap") {
-            cmd.tonemap = std::atof(argv[i + 1]);
-            i += 2;
+        else if (arg == "tonemap" || arg == "--tonemap") {
+            if (remaining < 1) return false;
+            cmd.tonemap = std::atof(argv[i++]);
         }
-        else if (command == "cut_merge" || command == "--cut_merge") {
+        else if (arg == "cut_merge" || arg == "--cut_merge") {
             cmd.cutMerge.doCutMerge = true;
-            i++;
         }
-        else if (command == "format" || command == "--format") {
-            std::string formatMode = argv[i + 1];
+        else if (arg == "format" || arg == "--format") {
+            if (remaining < 1) return false;
+            std::string formatMode = argv[i++];
             toLower(formatMode);
 
             if (formatMode == "secut") {
@@ -616,26 +632,26 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             else {
                 return false;
             }
-            i += 2;
         }
-        else if (command == "list" || command == "--list") {
-            std::string list = argv[i + 1];
+        else if (arg == "list" || arg == "--list") {
+            if (remaining < 1) return false;
+            std::string list = argv[i++];
             toLower(list);
 
             cmd.cutMerge.list = list;
-
-            i += 2;
         }
-        else if (command == "timemode" || command == "--timemode") {
-            std::string timemode = argv[i + 1];
+        else if (arg == "timemode" || arg == "--timemode") {
+            if (remaining < 1) return false;
+            std::string timemode = argv[i++];
             toLower(timemode);
 
             if (timemode == "ms") {
                 cmd.cutMerge.timeMode = e_cutMergeTimeMode::ms;
             }
             else if (timemode == "frame") {
+                if (remaining < 2) return false;
                 cmd.cutMerge.timeMode = e_cutMergeTimeMode::frame;
-                std::string strFactor = argv[i + 2];
+                std::string strFactor = argv[i];
 
                 size_t idx = strFactor.find("/");
                 if (idx != SIZE_MAX) {
@@ -645,7 +661,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                     cmd.cutMerge.fps = num / den;
                 }
                 else {
-                    cmd.cutMerge.fps = std::atof(argv[i + 2]);
+                    cmd.cutMerge.fps = std::atof(argv[i]);
                 }
                 i++;
             }
@@ -655,11 +671,10 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             else {
                 return false;
             }
-
-            i += 2;
         }
-        else if (command == "fixmode" || command == "--fixmode") {
-            std::string fixmode = argv[i + 1];
+        else if (arg == "fixmode" || arg == "--fixmode") {
+            if (remaining < 1) return false;
+            std::string fixmode = argv[i++];
             toLower(fixmode);
 
             if (fixmode == "cut") {
@@ -668,8 +683,17 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             else if (fixmode == "delete" || fixmode == "del") {
                 cmd.cutMerge.fixMode = e_cutMergeFixMode::del;
             }
+        }
+        else {
+            recognizedOption = false;
+        }
 
-            i += 2;
+        if (recognizedOption) {
+            foundStartOfOptions = true;
+        }
+        else if (!foundStartOfOptions) {
+            cmd.outputFile = argCStr;
+            foundStartOfOptions = true;
         }
         else {
             return false;
@@ -692,9 +716,10 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     return true;
 }
 
-const char* usageHelp = R"(Usage:  supmover <input.sup> <output.sup> [OPTIONS ...]
+const char* usageHelp = R"(Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
+  --trace
   --delay <ms>
   --move <delta x> <delta y>
   --crop <left> <top> <right> <bottom>
@@ -706,7 +731,7 @@ OPTIONS:
 CUT&MERGE OPTIONS:
   --list <list of sections>
   --format (secut | (vapoursynth | vs) | (avisynth | avs) | remap)
-  --timemode (ms | frame | timestamp)
+  --timemode (ms | frame (<num>/<den> | <fps>) | timestamp)
   --fixmode (cut | (delete | del))
 
 Delay and resync command are executed in the order supplied.
@@ -718,7 +743,7 @@ int main(int32_t argc, char** argv)
     t_header header;
 
 
-    if (argc < 4) {
+    if (argc < 3) {
         std::fprintf(stderr, "%s", usageHelp);
         return -1;
     }
@@ -736,18 +761,26 @@ int main(int32_t argc, char** argv)
     bool doResync  = cmd.resync != 1;
     bool doTonemap = cmd.tonemap != 1;
 
-    bool doSomething = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
+    bool doModification = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
+    bool doAnalysis = cmd.trace;
 
-    FILE* input = std::fopen(argv[1], "rb");
+    FILE* input = std::fopen(cmd.inputFile, "rb");
     if (input == nullptr) {
         std::fprintf(stderr, "Unable to open input file!\n");
         return -1;
     }
-    FILE* output = std::fopen(argv[2], "wb");
-    if (output == nullptr) {
-        std::fprintf(stderr, "Unable to open output file!\n");
-        std::fclose(input);
-        return -1;
+    FILE* output = nullptr;
+    if (doModification) {
+        if (cmd.outputFile == nullptr) {
+            std::fprintf(stderr, "Specified options require an output file!\n");
+            return -1;
+        }
+        output = std::fopen(cmd.outputFile, "wb");
+        if (output == nullptr) {
+            std::fprintf(stderr, "Unable to open output file!\n");
+            std::fclose(input);
+            return -1;
+        }
     }
 
     std::fseek(input, 0, SEEK_END);
@@ -762,7 +795,7 @@ int main(int32_t argc, char** argv)
         }
 
         std::fread(buffer, size, 1, input);
-        if (doSomething) {
+        if (doModification || doAnalysis) {
             size_t start = 0;
 
             t_rect screenRect = {};
@@ -770,6 +803,7 @@ int main(int32_t argc, char** argv)
             t_WDS wds = {};
             t_PCS pcs = {};
             t_PDS pds = {};
+            t_ODS ods = {};
 
             size_t offsetCurrPCS = 0;
             bool fixPCS = false;
@@ -798,6 +832,12 @@ int main(int32_t argc, char** argv)
                     return -1;
                 }
 
+                t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                char timestampString[13]; // max 99:99:99.999
+                std::snprintf(timestampString, 13, "%lu:%02lu:%02lu.%03lu", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                char offsetString[13];    // max 0xFFFFFFFFFF (1TB)
+                std::snprintf(offsetString, 13, "%#zx", start);
+
                 if (doResync) {
                     header.pts1 = (uint32_t)std::round((double)header.pts1 * cmd.resync);
                 }
@@ -811,10 +851,17 @@ int main(int32_t argc, char** argv)
 
                 switch (header.segmentType) {
                 case 0x14:
-                    //std::printf("PDS\r\n");
-                    if (doTonemap) {
+                    if (cmd.trace || doTonemap) {
                         pds = ReadPDS(&buffer[start + HEADER_SIZE], header.dataLength);
+                    }
 
+                    if (cmd.trace) {
+                        std::printf("  + PDS Segment: offset %s\n", offsetString);
+                        std::printf("    + Palette ID: %u\n", pds.paletteID);
+                        std::printf("    + Version: %u\n", pds.paletteVersionNumber);
+                        std::printf("    + Palette entries: %u\n", pds.paletteNum);
+                    }
+                    if (doTonemap) {
                         for (int i = 0; i < pds.paletteNum; i++) {
                             //convert Y from TV level (16-235) to full range
                             double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
@@ -829,13 +876,59 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x15:
-                    //std::printf("ODS\r\n");
+                    if (cmd.trace) {
+                        ods = ReadODS(&buffer[start + HEADER_SIZE]);
+
+                        std::printf("  + ODS Segment: offset %s\n", offsetString);
+                        std::printf("    + Object ID: %u\n", ods.objectID);
+                        std::printf("    + Version: %u\n", ods.objectVersionNumber);
+                        if (ods.lastInSequenceFlag != 0xC0) {
+                            std::printf("    + Sequence flag: ");
+                            switch (ods.lastInSequenceFlag) {
+                                case 0x40: std::printf("Last\n"); break;
+                                case 0x80: std::printf("First\n"); break;
+                                default:   std::printf("%#x\n", ods.lastInSequenceFlag); break;
+                            }
+                        }
+                        std::printf("    + Size: %ux%u\n", ods.width, ods.height);
+                    }
                     break;
                 case 0x16:
-                    //std::printf("PCS\r\n");
-                    if (doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
+                    if (cmd.trace) {
+                        std::printf("+ DS\n");
+                        std::printf("  + PTS: %s\n", timestampString);
+                        std::printf("  + PCS Segment: offset %s\n", offsetString);
+                    }
+                    if (cmd.trace || doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
                         pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
                         offsetCurrPCS = start;
+
+                        if (cmd.trace) {
+                            std::printf("    + Video size: %ux%u\n", pcs.width, pcs.height);
+                            std::printf("    + Composition number: %u\n", pcs.compositionNumber);
+                            std::printf("    + Composition state: ");
+                            switch (pcs.compositionState) {
+                                case 0x00: std::printf("Normal\n"); break;
+                                case 0x40: std::printf("Aquisition Point\n"); break;
+                                case 0x80: std::printf("Epoch Start\n"); break;
+                                default:   std::printf("%#x\n", pcs.compositionState); break;
+                            }
+                            if (pcs.paletteUpdFlag == 0x80) {
+                                std::printf("    + Palette update: True\n");
+                            }
+                            std::printf("    + Palette ID: %u\n", pcs.paletteID);
+                            for (int i = 0; i < pcs.numCompositionObject; i++) {
+                                std::printf("    + Composition object\n");
+                                t_compositionObject object = pcs.compositionObject[i];
+                                std::printf("      + Object ID: %u\n", object.objectID);
+                                std::printf("      + Window ID: %u\n", object.windowID);
+                                std::printf("      + Position: %u,%u\n", object.objectHorPos, object.objectVerPos);
+                                if (object.objectCroppedFlag == 0x40) {
+                                    std::printf("      + Object cropped: True\n");
+                                    // TODO: Print crop fields
+                                }
+                            }
+                        }
 
                         if (doCrop) {
                             screenRect.x      = 0 + cmd.crop.left;
@@ -847,14 +940,12 @@ int main(int32_t argc, char** argv)
                             pcs.height = screenRect.height;
 
                             if (pcs.numCompositionObject > 1) {
-                                t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                std::fprintf(stderr, "Multiple composition object at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                std::fprintf(stderr, "Multiple composition object at timestamp %s! Please Check!\n", timestampString);
                             }
 
                             for (int i = 0; i < pcs.numCompositionObject; i++) {
                                 if (pcs.compositionObject[i].objectCroppedFlag == 0x40) {
-                                    t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    std::fprintf(stderr, "Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Implement it!\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Implement it!\n", timestampString);
                                 }
 
                                 if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
@@ -934,14 +1025,25 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x17:
-                    //std::fprintf(stderr, "WDS\r\n");
+                    if (cmd.trace) {
+                        std::printf("  + WDS Segment: offset %s\n", offsetString);
+                    }
                     fixPCS = false;
-                    if (doMove || doCrop) {
+                    if (cmd.trace || doMove || doCrop) {
                         wds = ReadWDS(&buffer[start + HEADER_SIZE]);
 
-                        if (wds.numberOfWindows > 1) {
-                            t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                            std::fprintf(stderr, "Multiple windows at timestamp %lu:%02lu:%02lu.%03lu! Please Check!\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                        if (wds.numberOfWindows > 1 && doModification) {
+                            std::fprintf(stderr, "Multiple windows at timestamp %s! Please Check!\n", timestampString);
+                        }
+
+                        if (cmd.trace) {
+                            for (int i = 0; i < wds.numberOfWindows; i++) {
+                                std::printf("    + Window\n");
+                                t_window window = wds.windows[i];
+                                std::printf("      + Window ID: %u\n", window.windowID);
+                                std::printf("      + Position: %u,%u\n", window.WindowsHorPos, window.WindowsVerPos);
+                                std::printf("      + Size: %ux%u\n", window.WindowsWidth, window.WindowsHeight);
+                            }
                         }
 
                         if (doMove) {
@@ -962,8 +1064,7 @@ int main(int32_t argc, char** argv)
                                     if (object->windowID != window->windowID) continue;
 
                                     if (object->objectCroppedFlag == 0x40) {
-                                        t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                        std::fprintf(stderr, "Object Cropped Flag set at timestamp %lu:%02lu:%02lu.%03lu! Crop fields are not supported yet.\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                        std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Crop fields are not supported yet.\n", timestampString);
                                         /*
                                         object->objCropHorPos += clampedDeltaX;
                                         object->objCropVerPos += clampedDeltaY;
@@ -989,8 +1090,7 @@ int main(int32_t argc, char** argv)
 
                                 if (wndRect.width > screenRect.width
                                     || wndRect.height > screenRect.height) {
-                                    t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                    std::fprintf(stderr, "Window is bigger then new screen area at timestamp %lu:%02lu:%02lu.%03lu\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                    std::fprintf(stderr, "Window is bigger then new screen area at timestamp %s\n", timestampString);
                                     std::fprintf(stderr, "Implement it!\n");
                                     /*
                                     pcs.width = wndRect.width;
@@ -1000,8 +1100,7 @@ int main(int32_t argc, char** argv)
                                 }
                                 else {
                                     if (!rectIsContained(screenRect, wndRect)) {
-                                        t_timestamp timestamp = PTStoTimestamp(header.pts1);
-                                        std::fprintf(stderr, "Window is outside new screen area at timestamp %lu:%02lu:%02lu.%03lu\n", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                                        std::fprintf(stderr, "Window is outside new screen area at timestamp %s\n", timestampString);
 
                                         uint16_t wndRightPoint    = wndRect.x    + wndRect.width;
                                         uint16_t screenRightPoint = screenRect.x + screenRect.width;
@@ -1054,7 +1153,9 @@ int main(int32_t argc, char** argv)
                     }
                     break;
                 case 0x80:
-                    //std:printf("END\r\n");
+                    if (cmd.trace) {
+                        std::printf("  + END Segment: offset %s\n", offsetString);
+                    }
 
                     if (cmd.cutMerge.doCutMerge) {
                         if (cutMerge_foundEnd) {
@@ -1177,7 +1278,9 @@ int main(int32_t argc, char** argv)
             }
         }
 
-        std::fwrite(newBuffer, newSize, 1, output);
+        if (doModification) {
+            std::fwrite(newBuffer, newSize, 1, output);
+        }
     }
 
     std::fclose(input);

@@ -575,7 +575,7 @@ int main(int32_t argc, char** argv)
 
 
             for (start = 0; start < size; start = start + HEADER_SIZE + header.dataLength) {
-                header = ReadHeader(&buffer[start]);
+                header = readHeader(&buffer[start]);
                 if (header.header != 0x5047) {
                     std::fprintf(stderr, "Correct header not found at position %zd, abort!\n", start);
                     std::fclose(input);
@@ -583,62 +583,62 @@ int main(int32_t argc, char** argv)
                     return -1;
                 }
 
-                t_timestamp timestamp = PTStoTimestamp(header.pts1);
+                t_timestamp timestamp = PTStoTimestamp(header.pts);
                 char timestampString[13]; // max 99:99:99.999
                 std::snprintf(timestampString, 13, "%lu:%02lu:%02lu.%03lu", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                 char offsetString[13];    // max 0xFFFFFFFFFF (1TB)
                 std::snprintf(offsetString, 13, "%#zx", start);
 
                 if (doResync) {
-                    header.pts1 = (uint32_t)std::round((double)header.pts1 * cmd.resync);
+                    header.pts = (uint32_t)std::round((double)header.pts * cmd.resync);
                 }
                 if (doDelay) {
-                    header.pts1 = header.pts1 + cmd.delay;
+                    header.pts = header.pts + cmd.delay;
                 }
 
                 if (doResync || doDelay) {
-                    WriteHeader(header, &buffer[start]);
+                    writeHeader(header, &buffer[start]);
                 }
 
                 switch (header.segmentType) {
                 case 0x14:
                     if (cmd.trace || doTonemap) {
-                        pds = ReadPDS(&buffer[start + HEADER_SIZE], header.dataLength);
+                        pds = readPDS(&buffer[start + HEADER_SIZE], header.dataLength);
                     }
 
                     if (cmd.trace) {
                         std::printf("  + PDS Segment: offset %s\n", offsetString);
-                        std::printf("    + Palette ID: %u\n", pds.paletteID);
-                        std::printf("    + Version: %u\n", pds.paletteVersionNumber);
-                        std::printf("    + Palette entries: %u\n", pds.paletteNum);
+                        std::printf("    + Palette ID: %u\n", pds.id);
+                        std::printf("    + Version: %u\n", pds.versionNumber);
+                        std::printf("    + Palette entries: %u\n", pds.numberOfPalettes);
                     }
                     if (doTonemap) {
-                        for (int i = 0; i < pds.paletteNum; i++) {
+                        for (int i = 0; i < pds.numberOfPalettes; i++) {
                             //convert Y from TV level (16-235) to full range
-                            double expandedY   = ((((double)pds.palette[i].paletteY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
+                            double expandedY   = ((((double)pds.palettes[i].valueY - 16.0) * (255.0 / (235.0 - 16.0))) / 255.0);
                             double tonemappedY = expandedY * cmd.tonemap;
                             double clampedY    = std::min(1.0, std::max(tonemappedY, 0.0));
                             double newY        = std::round((clampedY * (235.0 - 16.0)) + 16.0);
 
-                            pds.palette[i].paletteY = (uint8_t)newY;
+                            pds.palettes[i].valueY = (uint8_t)newY;
                         }
 
-                        WritePDS(pds, &buffer[start + HEADER_SIZE]);
+                        writePDS(pds, &buffer[start + HEADER_SIZE]);
                     }
                     break;
                 case 0x15:
                     if (cmd.trace) {
-                        ods = ReadODS(&buffer[start + HEADER_SIZE]);
+                        ods = readODS(&buffer[start + HEADER_SIZE]);
 
                         std::printf("  + ODS Segment: offset %s\n", offsetString);
-                        std::printf("    + Object ID: %u\n", ods.objectID);
-                        std::printf("    + Version: %u\n", ods.objectVersionNumber);
-                        if (ods.lastInSequenceFlag != 0xC0) {
+                        std::printf("    + Object ID: %u\n", ods.id);
+                        std::printf("    + Version: %u\n", ods.versionNumber);
+                        if (ods.sequenceFlag != 0xC0) {
                             std::printf("    + Sequence flag: ");
-                            switch (ods.lastInSequenceFlag) {
+                            switch (ods.sequenceFlag) {
                                 case 0x40: std::printf("Last\n"); break;
                                 case 0x80: std::printf("First\n"); break;
-                                default:   std::printf("%#x\n", ods.lastInSequenceFlag); break;
+                                default:   std::printf("%#x\n", ods.sequenceFlag); break;
                             }
                         }
                         std::printf("    + Size: %ux%u\n", ods.width, ods.height);
@@ -651,7 +651,7 @@ int main(int32_t argc, char** argv)
                         std::printf("  + PCS Segment: offset %s\n", offsetString);
                     }
                     if (cmd.trace || doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
-                        pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
+                        pcs = readPCS(&buffer[start + HEADER_SIZE]);
                         offsetCurrPCS = start;
 
                         if (cmd.trace) {
@@ -664,23 +664,23 @@ int main(int32_t argc, char** argv)
                                 case 0x80: std::printf("Epoch Start\n"); break;
                                 default:   std::printf("%#x\n", pcs.compositionState); break;
                             }
-                            if (pcs.paletteUpdFlag == 0x80) {
+                            if (pcs.paletteUpdateFlag == 0x80) {
                                 std::printf("    + Palette update: True\n");
                             }
                             std::printf("    + Palette ID: %u\n", pcs.paletteID);
-                            for (int i = 0; i < pcs.numCompositionObject; i++) {
+                            for (int i = 0; i < pcs.numberOfCompositionObjects; i++) {
                                 std::printf("    + Composition object\n");
-                                t_compositionObject object = pcs.compositionObject[i];
+                                t_compositionObject object = pcs.compositionObjects[i];
                                 std::printf("      + Object ID: %u\n", object.objectID);
                                 std::printf("      + Window ID: %u\n", object.windowID);
-                                std::printf("      + Position: %u,%u\n", object.objectHorPos, object.objectVerPos);
-                                if (object.objectCroppedAndForcedFlag & e_objectFlags::forced) {
+                                std::printf("      + Position: %u,%u\n", object.horizontalPosition, object.verticalPosition);
+                                if (object.croppedAndForcedFlag & e_objectFlags::forced) {
                                     std::printf("      + Forced display: True\n");
                                 }
-                                if (object.objectCroppedAndForcedFlag & e_objectFlags::cropped) {
+                                if (object.croppedAndForcedFlag & e_objectFlags::cropped) {
                                     std::printf("      + Cropped: True\n");
-                                    std::printf("      + Cropped position: %u,%u\n", object.objCropHorPos, object.objCropVerPos);
-                                    std::printf("      + Cropped size: %ux%u\n", object.objCropWidth, object.objCropHeight);
+                                    std::printf("      + Cropped position: %u,%u\n", object.croppedHorizontalPosition, object.croppedVerticalPosition);
+                                    std::printf("      + Cropped size: %ux%u\n", object.croppedWidth, object.croppedHeight);
                                 }
                             }
                         }
@@ -694,27 +694,27 @@ int main(int32_t argc, char** argv)
                             pcs.width  = screenRect.width;
                             pcs.height = screenRect.height;
 
-                            if (pcs.numCompositionObject > 1) {
+                            if (pcs.numberOfCompositionObjects > 1) {
                                 std::fprintf(stderr, "Multiple composition object at timestamp %s! Please Check!\n", timestampString);
                             }
 
-                            for (int i = 0; i < pcs.numCompositionObject; i++) {
-                                if (pcs.compositionObject[i].objectCroppedAndForcedFlag & e_objectFlags::cropped) {
+                            for (int i = 0; i < pcs.numberOfCompositionObjects; i++) {
+                                if (pcs.compositionObjects[i].croppedAndForcedFlag & e_objectFlags::cropped) {
                                     std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Implement it!\n", timestampString);
                                 }
 
-                                if (cmd.crop.left > pcs.compositionObject[i].objectHorPos) {
-                                    pcs.compositionObject[i].objectHorPos = 0;
+                                if (cmd.crop.left > pcs.compositionObjects[i].horizontalPosition) {
+                                    pcs.compositionObjects[i].horizontalPosition = 0;
                                 }
                                 else {
-                                    pcs.compositionObject[i].objectHorPos -= cmd.crop.left;
+                                    pcs.compositionObjects[i].horizontalPosition -= cmd.crop.left;
                                 }
 
-                                if (cmd.crop.top > pcs.compositionObject[i].objectVerPos) {
-                                    pcs.compositionObject[i].objectVerPos = 0;
+                                if (cmd.crop.top > pcs.compositionObjects[i].verticalPosition) {
+                                    pcs.compositionObjects[i].verticalPosition = 0;
                                 }
                                 else {
-                                    pcs.compositionObject[i].objectVerPos -= cmd.crop.top;
+                                    pcs.compositionObjects[i].verticalPosition -= cmd.crop.top;
                                 }
                             }
                         }
@@ -724,35 +724,35 @@ int main(int32_t argc, char** argv)
                                 uint8_t zeroBuffer[60];
                                 uint8_t pos = 0;
                                 t_header zeroHeader(header);
-                                zeroHeader.pts1 = 0;
+                                zeroHeader.pts = 0;
                                 zeroHeader.dataLength = 11; //Length of upcoming PCS
-                                WriteHeader(zeroHeader, &zeroBuffer[pos]);
+                                writeHeader(zeroHeader, &zeroBuffer[pos]);
                                 pos += 13;
                                 t_PCS zeroPcs(pcs);
                                 zeroPcs.compositionState = 0;
-                                zeroPcs.paletteUpdFlag = 0;
+                                zeroPcs.paletteUpdateFlag = 0;
                                 zeroPcs.paletteID = 0;
-                                zeroPcs.numCompositionObject = 0;
-                                WritePCS(zeroPcs, &zeroBuffer[pos]);
+                                zeroPcs.numberOfCompositionObjects = 0;
+                                writePCS(zeroPcs, &zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
                                 zeroHeader.segmentType = 0x17; // WDS
                                 zeroHeader.dataLength = 10; //Length of upcoming WDS
-                                WriteHeader(zeroHeader, &zeroBuffer[pos]);
+                                writeHeader(zeroHeader, &zeroBuffer[pos]);
                                 pos += 13;
                                 t_WDS zeroWds;
                                 zeroWds.numberOfWindows = 1;
-                                zeroWds.windows[0].windowID = 0;
-                                zeroWds.windows[0].WindowsHorPos = 0;
-                                zeroWds.windows[0].WindowsVerPos = 0;
-                                zeroWds.windows[0].WindowsWidth = 0;
-                                zeroWds.windows[0].WindowsHeight = 0;
-                                WriteWDS(zeroWds, &zeroBuffer[pos]);
+                                zeroWds.windows[0].id = 0;
+                                zeroWds.windows[0].horizontalPosition = 0;
+                                zeroWds.windows[0].verticalPosition = 0;
+                                zeroWds.windows[0].width = 0;
+                                zeroWds.windows[0].height = 0;
+                                writeWDS(zeroWds, &zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
                                 zeroHeader.segmentType = 0x80; // END
                                 zeroHeader.dataLength = 0; //Length of upcoming END
-                                WriteHeader(zeroHeader, &zeroBuffer[pos]);
+                                writeHeader(zeroHeader, &zeroBuffer[pos]);
                                 pos += 13;
 
                                 std::fprintf(stderr, "Writing %d bytes as first display set\n", pos);
@@ -767,16 +767,16 @@ int main(int32_t argc, char** argv)
                         if (cmd.cutMerge.doCutMerge) {
                             if (!cutMerge_foundBegin) {
                                 cutMerge_foundBegin = true;
-                                cutMerge_currentBeginPTS = header.pts1;
+                                cutMerge_currentBeginPTS = header.pts;
                                 cutMerge_currentCompositionNumber = pcs.compositionNumber;
                             }
                             else if (!cutMerge_foundEnd) {
                                 cutMerge_foundEnd = true;
-                                cutMerge_currentEndPTS = header.pts1;
+                                cutMerge_currentEndPTS = header.pts;
                             }
                         }
 
-                        WritePCS(pcs, &buffer[start + HEADER_SIZE]);
+                        writePCS(pcs, &buffer[start + HEADER_SIZE]);
                     }
                     break;
                 case 0x17:
@@ -785,7 +785,7 @@ int main(int32_t argc, char** argv)
                     }
                     fixPCS = false;
                     if (cmd.trace || doMove || doCrop) {
-                        wds = ReadWDS(&buffer[start + HEADER_SIZE]);
+                        wds = readWDS(&buffer[start + HEADER_SIZE]);
 
                         if (wds.numberOfWindows > 1 && doModification) {
                             std::fprintf(stderr, "Multiple windows at timestamp %s! Please Check!\n", timestampString);
@@ -795,34 +795,34 @@ int main(int32_t argc, char** argv)
                             for (int i = 0; i < wds.numberOfWindows; i++) {
                                 std::printf("    + Window\n");
                                 t_window window = wds.windows[i];
-                                std::printf("      + Window ID: %u\n", window.windowID);
-                                std::printf("      + Position: %u,%u\n", window.WindowsHorPos, window.WindowsVerPos);
-                                std::printf("      + Size: %ux%u\n", window.WindowsWidth, window.WindowsHeight);
+                                std::printf("      + Window ID: %u\n", window.id);
+                                std::printf("      + Position: %u,%u\n", window.horizontalPosition, window.verticalPosition);
+                                std::printf("      + Size: %ux%u\n", window.width, window.height);
                             }
                         }
 
                         if (doMove) {
                             for (int i = 0; i < wds.numberOfWindows; i++) {
                                 t_window *window = &wds.windows[i];
-                                int16_t minDeltaX = -(int16_t)window->WindowsHorPos;
-                                int16_t minDeltaY = -(int16_t)window->WindowsVerPos;
-                                int16_t maxDeltaX = pcs.width - (window->WindowsHorPos + window->WindowsWidth);
-                                int16_t maxDeltaY = pcs.height - (window->WindowsVerPos + window->WindowsHeight);
+                                int16_t minDeltaX = -(int16_t)window->horizontalPosition;
+                                int16_t minDeltaY = -(int16_t)window->verticalPosition;
+                                int16_t maxDeltaX = pcs.width - (window->horizontalPosition + window->width);
+                                int16_t maxDeltaY = pcs.height - (window->verticalPosition + window->height);
                                 int16_t clampedDeltaX = std::min(std::max(cmd.move.deltaX, minDeltaX), maxDeltaX);
                                 int16_t clampedDeltaY = std::min(std::max(cmd.move.deltaY, minDeltaY), maxDeltaY);
 
-                                window->WindowsHorPos += clampedDeltaX;
-                                window->WindowsVerPos += clampedDeltaY;
+                                window->horizontalPosition += clampedDeltaX;
+                                window->verticalPosition += clampedDeltaY;
 
-                                for (int j = 0; j < pcs.numCompositionObject; j++) {
-                                    t_compositionObject *object = &pcs.compositionObject[j];
-                                    if (object->windowID != window->windowID) continue;
-                                    if (object->objectCroppedAndForcedFlag & e_objectFlags::cropped) {
-                                        object->objCropHorPos += clampedDeltaX;
-                                        object->objCropVerPos += clampedDeltaY;
+                                for (int j = 0; j < pcs.numberOfCompositionObjects; j++) {
+                                    t_compositionObject *object = &pcs.compositionObjects[j];
+                                    if (object->windowID != window->id) continue;
+                                    if (object->croppedAndForcedFlag & e_objectFlags::cropped) {
+                                        object->croppedHorizontalPosition += clampedDeltaX;
+                                        object->croppedVerticalPosition += clampedDeltaY;
                                     }
-                                    object->objectHorPos += clampedDeltaX;
-                                    object->objectVerPos += clampedDeltaY;
+                                    object->horizontalPosition += clampedDeltaX;
+                                    object->verticalPosition += clampedDeltaY;
                                     fixPCS = true;
                                 }
                             }
@@ -834,10 +834,10 @@ int main(int32_t argc, char** argv)
                                 uint16_t corrHor = 0;
                                 uint16_t corrVer = 0;
 
-                                wndRect.x      = wds.windows[i].WindowsHorPos;
-                                wndRect.y      = wds.windows[i].WindowsVerPos;
-                                wndRect.width  = wds.windows[i].WindowsWidth;
-                                wndRect.height = wds.windows[i].WindowsHeight;
+                                wndRect.x      = wds.windows[i].horizontalPosition;
+                                wndRect.y      = wds.windows[i].verticalPosition;
+                                wndRect.width  = wds.windows[i].width;
+                                wndRect.height = wds.windows[i].height;
 
                                 if (wndRect.width > screenRect.width
                                     || wndRect.height > screenRect.height) {
@@ -871,25 +871,25 @@ int main(int32_t argc, char** argv)
                                     }
                                 }
 
-                                if (cmd.crop.left > wds.windows[i].WindowsHorPos) {
-                                    wds.windows[i].WindowsHorPos = 0;
+                                if (cmd.crop.left > wds.windows[i].horizontalPosition) {
+                                    wds.windows[i].horizontalPosition = 0;
                                 }
                                 else {
-                                    wds.windows[i].WindowsHorPos -= (cmd.crop.left + corrHor);
+                                    wds.windows[i].horizontalPosition -= (cmd.crop.left + corrHor);
                                 }
 
-                                if (cmd.crop.top > wds.windows[i].WindowsVerPos) {
-                                    wds.windows[i].WindowsVerPos = 0;
+                                if (cmd.crop.top > wds.windows[i].verticalPosition) {
+                                    wds.windows[i].verticalPosition = 0;
                                 }
                                 else {
-                                    wds.windows[i].WindowsVerPos -= (cmd.crop.top + corrVer);
+                                    wds.windows[i].verticalPosition -= (cmd.crop.top + corrVer);
                                 }
 
                                 if (corrVer != 0 || corrHor != 0) {
-                                    for (int j = 0; j < pcs.numCompositionObject; j++) {
-                                        if (pcs.compositionObject[j].windowID != wds.windows[i].windowID) continue;
-                                        pcs.compositionObject[j].objectVerPos -= corrVer;
-                                        pcs.compositionObject[j].objectHorPos -= corrHor;
+                                    for (int j = 0; j < pcs.numberOfCompositionObjects; j++) {
+                                        if (pcs.compositionObjects[j].windowID != wds.windows[i].id) continue;
+                                        pcs.compositionObjects[j].verticalPosition -= corrVer;
+                                        pcs.compositionObjects[j].horizontalPosition -= corrHor;
                                     }
                                     fixPCS = true;
                                 }
@@ -897,9 +897,9 @@ int main(int32_t argc, char** argv)
                         }
 
                         if (fixPCS) {
-                            WritePCS(pcs, &buffer[offsetCurrPCS + HEADER_SIZE]);
+                            writePCS(pcs, &buffer[offsetCurrPCS + HEADER_SIZE]);
                         }
-                        WriteWDS(wds, &buffer[start + HEADER_SIZE]);
+                        writeWDS(wds, &buffer[start + HEADER_SIZE]);
 
                     }
                     break;
@@ -948,16 +948,16 @@ int main(int32_t argc, char** argv)
                     if (cutMerge_currentToSaveIdx >= cutMerge_compositionNumberToSave.size()) {
                         break;
                     }
-                    header = ReadHeader(&buffer[start]);
+                    header = readHeader(&buffer[start]);
 
                     //For Cut&Merge we only need to handle the header (for the PTS), the PCS (to
                     //get the compositionNumber) and the END segment (to know when it finished)
                     if (header.segmentType == 0x16)
                     {
-                        pcs = ReadPCS(&buffer[start + HEADER_SIZE]);
+                        pcs = readPCS(&buffer[start + HEADER_SIZE]);
                         if (!cutMerge_foundBegin) {
                             cutMerge_foundBegin = true;
-                            cutMerge_currentBeginPTS = header.pts1;
+                            cutMerge_currentBeginPTS = header.pts;
                             cutMerge_currentCompositionNumber = pcs.compositionNumber;
 
                             if (cutMerge_compositionNumberToSave[cutMerge_currentToSaveIdx].compositionNumber == cutMerge_currentCompositionNumber) {
@@ -965,16 +965,16 @@ int main(int32_t argc, char** argv)
                                 cutMerge_offsetBeginCopy = start;
                                 cutMerge_currentSection = cmd.cutMerge.section[cutMerge_compositionNumberToSave[cutMerge_currentToSaveIdx].sectionIdx];
                                 pcs.compositionNumber = cutMerge_newCompositionNumber;
-                                WritePCS(pcs, &buffer[start + HEADER_SIZE]);
+                                writePCS(pcs, &buffer[start + HEADER_SIZE]);
                             }
                         }
                         else if (!cutMerge_foundEnd) {
                             cutMerge_foundEnd = true;
-                            cutMerge_currentEndPTS = header.pts1;
+                            cutMerge_currentEndPTS = header.pts;
                             if (cutMerge_keepSection) {
                                 pcs.compositionNumber = cutMerge_newCompositionNumber;
 
-                                WritePCS(pcs, &buffer[start + HEADER_SIZE]);
+                                writePCS(pcs, &buffer[start + HEADER_SIZE]);
                             }
                         }
                     }
@@ -982,18 +982,18 @@ int main(int32_t argc, char** argv)
                     if (cutMerge_keepSection) {
                         if (!cutMerge_foundEnd) {
                             if (cutMerge_currentBeginPTS < cutMerge_currentSection.begin) {
-                                header.pts1 = cutMerge_currentSection.begin;
+                                header.pts = cutMerge_currentSection.begin;
                             }
                         }
                         else {
                             if (cutMerge_currentEndPTS > cutMerge_currentSection.end) {
-                                header.pts1 = cutMerge_currentSection.end;
+                                header.pts = cutMerge_currentSection.end;
                             }
                         }
 
-                        header.pts1 -= cutMerge_currentSection.delay_until;
+                        header.pts -= cutMerge_currentSection.delay_until;
 
-                        WriteHeader(header, &buffer[start]);
+                        writeHeader(header, &buffer[start]);
                     }
 
                     if (header.segmentType == 0x80)

@@ -39,6 +39,12 @@ struct t_crop {
     uint16_t bottom;
 };
 
+enum e_objectFlags : uint8_t {
+    none    = 0x00,
+    forced  = 0x40,
+    cropped = 0x80
+};
+
 enum e_cutMergeFormat : uint8_t {
     secut = 0,       //"[1000-2000] [3000-4000]" both inclusive
     vapoursynth = 1, //"[1000:2001] [3000:4001]" start inclusive, end exclusive
@@ -245,18 +251,21 @@ t_PCS ReadPCS(uint8_t* buffer) {
     pcs.paletteID            =                *(uint8_t*) &buffer[9];
     pcs.numCompositionObject =                *(uint8_t*) &buffer[10];
 
+    size_t bufferStartIdx = 11;
     for (int i = 0; i < pcs.numCompositionObject; i++) {
-        size_t bufferStartIdx = 11 + (size_t)i * 8;
-
         pcs.compositionObject[i].objectID                   = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 0]);
         pcs.compositionObject[i].windowID                   =                *(uint8_t*) &buffer[bufferStartIdx + 2];
         pcs.compositionObject[i].objectCroppedAndForcedFlag =                *(uint8_t*) &buffer[bufferStartIdx + 3];
         pcs.compositionObject[i].objectHorPos               = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 4]);
         pcs.compositionObject[i].objectVerPos               = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 6]);
-        pcs.compositionObject[i].objCropHorPos              = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
-        pcs.compositionObject[i].objCropVerPos              = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
-        pcs.compositionObject[i].objCropWidth               = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 12]);
-        pcs.compositionObject[i].objCropHeight              = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 14]);
+        if (pcs.compositionObject[i].objectCroppedAndForcedFlag & e_objectFlags::cropped){
+            pcs.compositionObject[i].objCropHorPos          = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 8]);
+            pcs.compositionObject[i].objCropVerPos          = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 10]);
+            pcs.compositionObject[i].objCropWidth           = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 12]);
+            pcs.compositionObject[i].objCropHeight          = swapEndianness(*(uint16_t*)&buffer[bufferStartIdx + 14]);
+            bufferStartIdx += 8;
+        }
+        bufferStartIdx += 8;
     }
 
     return pcs;
@@ -272,18 +281,21 @@ void WritePCS(t_PCS pcs, uint8_t* buffer) {
     *((uint8_t*) (&buffer[9]))  =                pcs.paletteID;
     *((uint8_t*) (&buffer[10])) =                pcs.numCompositionObject;
 
+    size_t bufferStartIdx = 11;
     for (int i = 0; i < pcs.numCompositionObject; i++) {
-        size_t bufferStartIdx = 11 + (size_t)i * 8;
-
         *((uint16_t*)(&buffer[bufferStartIdx + 0]))  = swapEndianness(pcs.compositionObject[i].objectID);
         *((uint8_t*) (&buffer[bufferStartIdx + 2]))  =                pcs.compositionObject[i].windowID;
         *((uint8_t*) (&buffer[bufferStartIdx + 3]))  =                pcs.compositionObject[i].objectCroppedAndForcedFlag;
         *((uint16_t*)(&buffer[bufferStartIdx + 4]))  = swapEndianness(pcs.compositionObject[i].objectHorPos);
         *((uint16_t*)(&buffer[bufferStartIdx + 6]))  = swapEndianness(pcs.compositionObject[i].objectVerPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 8]))  = swapEndianness(pcs.compositionObject[i].objCropHorPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject[i].objCropVerPos);
-        *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject[i].objCropWidth);
-        *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject[i].objCropHeight);
+        if (pcs.compositionObject[i].objectCroppedAndForcedFlag & e_objectFlags::cropped){
+            *((uint16_t*)(&buffer[bufferStartIdx + 8]))  = swapEndianness(pcs.compositionObject[i].objCropHorPos);
+            *((uint16_t*)(&buffer[bufferStartIdx + 10])) = swapEndianness(pcs.compositionObject[i].objCropVerPos);
+            *((uint16_t*)(&buffer[bufferStartIdx + 12])) = swapEndianness(pcs.compositionObject[i].objCropWidth);
+            *((uint16_t*)(&buffer[bufferStartIdx + 14])) = swapEndianness(pcs.compositionObject[i].objCropHeight);
+            bufferStartIdx += 8;
+        }
+        bufferStartIdx += 8;
     }
 }
 
@@ -918,10 +930,10 @@ int main(int32_t argc, char** argv)
                                 std::printf("      + Object ID: %u\n", object.objectID);
                                 std::printf("      + Window ID: %u\n", object.windowID);
                                 std::printf("      + Position: %u,%u\n", object.objectHorPos, object.objectVerPos);
-                                if (object.objectCroppedAndForcedFlag & 0x40) {
+                                if (object.objectCroppedAndForcedFlag & e_objectFlags::forced) {
                                     std::printf("      + Forced display: True\n");
                                 }
-                                if (object.objectCroppedAndForcedFlag & 0x80) {
+                                if (object.objectCroppedAndForcedFlag & e_objectFlags::cropped) {
                                     std::printf("      + Cropped: True\n");
                                     std::printf("      + Cropped position: %u,%u\n", object.objCropHorPos, object.objCropVerPos);
                                     std::printf("      + Cropped size: %ux%u\n", object.objCropWidth, object.objCropHeight);
@@ -943,7 +955,7 @@ int main(int32_t argc, char** argv)
                             }
 
                             for (int i = 0; i < pcs.numCompositionObject; i++) {
-                                if (pcs.compositionObject[i].objectCroppedAndForcedFlag & 0x80) {
+                                if (pcs.compositionObject[i].objectCroppedAndForcedFlag & e_objectFlags::cropped) {
                                     std::fprintf(stderr, "Object Cropped Flag set at timestamp %s! Implement it!\n", timestampString);
                                 }
 
@@ -1061,7 +1073,7 @@ int main(int32_t argc, char** argv)
                                 for (int j = 0; j < pcs.numCompositionObject; j++) {
                                     t_compositionObject *object = &pcs.compositionObject[j];
                                     if (object->windowID != window->windowID) continue;
-                                    if (object->objectCroppedAndForcedFlag & 0x80) {
+                                    if (object->objectCroppedAndForcedFlag & e_objectFlags::cropped) {
                                         object->objCropHorPos += clampedDeltaX;
                                         object->objCropVerPos += clampedDeltaY;
                                     }

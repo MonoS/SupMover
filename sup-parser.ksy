@@ -109,16 +109,16 @@ types:
         type: u2
       - id: obj_crop_hor_pos
         type: u2
-        if: object_cropped_flag == 0x40
+        if: object_cropped_flag & 0x80 != 0
       - id: obj_crop_ver_pos
         type: u2
-        if: object_cropped_flag == 0x40
+        if: object_cropped_flag & 0x80 != 0
       - id: obj_crop_width
         type: u2
-        if: object_cropped_flag == 0x40
+        if: object_cropped_flag & 0x80 != 0
       - id: obj_crop_height
         type: u2
-        if: object_cropped_flag == 0x40
+        if: object_cropped_flag & 0x80 != 0
 
   windows_object_type:
     seq:

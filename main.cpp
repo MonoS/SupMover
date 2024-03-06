@@ -142,7 +142,7 @@ int timestampToMs(char* timestamp) {
 }
 
 int searchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS, uint32_t endPTS, e_cutMergeFixMode fixMode) {
-    for (int i = 0; i < section.size(); i++) {
+    for (int i = 0; i < (int)section.size(); i++) {
         t_cutMergeSection currSection = section[i];
         int found = 0;
 
@@ -263,7 +263,7 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
 
         cutMerge->section.push_back(section);
 
-        if (charRead + 1 < list.length()) {
+        if (charRead + 1 < (int)list.length()) {
             list = list.substr(charRead + 1, list.length());
         }
         else {
@@ -274,8 +274,7 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
     std::sort(cutMerge->section.begin(), cutMerge->section.end(), compareCutMergeSection);
 
     int32_t runningDelay = 0;
-    t_cutMergeSection prec = {};
-    for (int i = 0; i < cutMerge->section.size(); i++) {
+    for (int i = 0; i < (int)cutMerge->section.size(); i++) {
         cutMerge->section[i].delay_until = runningDelay + cutMerge->section[i].begin;
         runningDelay += (cutMerge->section[i].begin - cutMerge->section[i].end);
     }

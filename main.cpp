@@ -61,7 +61,7 @@ struct t_cutMergeSection {
     uint32_t delay_until;
 };
 
-bool CompareCutMergeSection(t_cutMergeSection a, t_cutMergeSection b) {
+bool compareCutMergeSection(t_cutMergeSection a, t_cutMergeSection b) {
     return (a.begin < b.begin);
 }
 
@@ -95,7 +95,7 @@ struct t_cmd {
 
 void toLower(std::string& str) {
     std::transform(str.begin(), str.end(), str.begin(), [](int i) {
-            return std::tolower(i);
+        return std::tolower(i);
     });
 }
 
@@ -114,7 +114,7 @@ bool rectIsContained(t_rect container, t_rect window) {
     }
 }
 
-t_timestamp PTStoTimestamp(uint32_t pts) {
+t_timestamp ptsToTimestamp(uint32_t pts) {
     t_timestamp res;
 
     res.ms = ((int)floor((float)pts / MS_TO_PTS_MULT));
@@ -139,10 +139,9 @@ int timestampToMs(char* timestamp) {
     }
 
     return ((((hh * 60 * 60) + (mm * 60) + ss) * 1000) + ms);
-
 }
 
-int SearchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS, uint32_t endPTS, e_cutMergeFixMode fixMode) {
+int searchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS, uint32_t endPTS, e_cutMergeFixMode fixMode) {
     for (int i = 0; i < section.size(); i++) {
         t_cutMergeSection currSection = section[i];
         int found = 0;
@@ -272,7 +271,7 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
         }
     } while (list.length() > 0);
 
-    std::sort(cutMerge->section.begin(), cutMerge->section.end(), CompareCutMergeSection);
+    std::sort(cutMerge->section.begin(), cutMerge->section.end(), compareCutMergeSection);
 
     int32_t runningDelay = 0;
     t_cutMergeSection prec = {};
@@ -282,10 +281,9 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
     }
 
     return true;
-
 }
 
-bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
+bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     int i = 1;
 
     cmd.inputFile = argv[i++];
@@ -467,6 +465,7 @@ bool ParseCMD(int32_t argc, char** argv, t_cmd& cmd) {
     return true;
 }
 
+
 const char* usageHelp = R"(Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
@@ -488,11 +487,11 @@ CUT&MERGE OPTIONS:
 Delay and resync command are executed in the order supplied.
 )";
 
+
 int main(int32_t argc, char** argv)
 {
     size_t size, newSize;
     t_header header;
-
 
     if (argc < 3) {
         std::fprintf(stderr, "%s", usageHelp);
@@ -500,7 +499,7 @@ int main(int32_t argc, char** argv)
     }
     t_cmd cmd = {};
 
-    if (!ParseCMD(argc, argv, cmd)) {
+    if (!parseCMD(argc, argv, cmd)) {
         std::fprintf(stderr, "Error parsing input\n");
         return -1;
     }
@@ -583,7 +582,7 @@ int main(int32_t argc, char** argv)
                     return -1;
                 }
 
-                t_timestamp timestamp = PTStoTimestamp(header.pts);
+                t_timestamp timestamp = ptsToTimestamp(header.pts);
                 char timestampString[13]; // max 99:99:99.999
                 std::snprintf(timestampString, 13, "%lu:%02lu:%02lu.%03lu", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
                 char offsetString[13];    // max 0xFFFFFFFFFF (1TB)
@@ -912,7 +911,7 @@ int main(int32_t argc, char** argv)
                         if (cutMerge_foundEnd) {
                             cutMerge_foundBegin = false;
                             cutMerge_foundEnd = false;
-                            int idxFound = SearchSectionByPTS(cmd.cutMerge.section, cutMerge_currentBeginPTS, cutMerge_currentEndPTS, cmd.cutMerge.fixMode);
+                            int idxFound = searchSectionByPTS(cmd.cutMerge.section, cutMerge_currentBeginPTS, cutMerge_currentEndPTS, cmd.cutMerge.fixMode);
                             if (idxFound != -1) {
                                 t_compositionNumberToSaveInfo compositionNumberToSaveInfo = {};
                                 compositionNumberToSaveInfo.compositionNumber = cutMerge_currentCompositionNumber;

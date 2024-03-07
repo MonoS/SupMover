@@ -205,7 +205,7 @@ int main(int32_t argc, char** argv)
                 }
 
                 switch (header.segmentType) {
-                case 0x14:
+                case e_segmentType::pds:
                     if (cmd.trace || doTonemap) {
                         pds = t_PDS::read(&buffer[start + HEADER_SIZE], header.dataLength);
                     }
@@ -230,25 +230,25 @@ int main(int32_t argc, char** argv)
                         pds.write(&buffer[start + HEADER_SIZE]);
                     }
                     break;
-                case 0x15:
+                case e_segmentType::ods:
                     if (cmd.trace) {
                         ods = t_ODS::read(&buffer[start + HEADER_SIZE]);
 
                         std::printf("  + ODS Segment: offset %s\n", offsetString);
                         std::printf("    + Object ID: %u\n", ods.id);
                         std::printf("    + Version: %u\n", ods.versionNumber);
-                        if (ods.sequenceFlag != 0xC0) {
+                        if (ods.sequenceFlag != e_sequenceFlag::firstAndLast) {
                             std::printf("    + Sequence flag: ");
                             switch (ods.sequenceFlag) {
-                                case 0x40: std::printf("Last\n"); break;
-                                case 0x80: std::printf("First\n"); break;
+                                case e_sequenceFlag::last:  std::printf("Last\n"); break;
+                                case e_sequenceFlag::first: std::printf("First\n"); break;
                                 default:   std::printf("%#x\n", ods.sequenceFlag); break;
                             }
                         }
                         std::printf("    + Size: %ux%u\n", ods.width, ods.height);
                     }
                     break;
-                case 0x16:
+                case e_segmentType::pcs:
                     if (cmd.trace) {
                         std::printf("+ DS\n");
                         std::printf("  + PTS: %s\n", timestampString);
@@ -263,10 +263,10 @@ int main(int32_t argc, char** argv)
                             std::printf("    + Composition number: %u\n", pcs.compositionNumber);
                             std::printf("    + Composition state: ");
                             switch (pcs.compositionState) {
-                                case 0x00: std::printf("Normal\n"); break;
-                                case 0x40: std::printf("Aquisition Point\n"); break;
-                                case 0x80: std::printf("Epoch Start\n"); break;
-                                default:   std::printf("%#x\n", pcs.compositionState); break;
+                                case e_compositionState::normal:           std::printf("Normal\n"); break;
+                                case e_compositionState::acquisitionPoint: std::printf("Aquisition Point\n"); break;
+                                case e_compositionState::epochStart:       std::printf("Epoch Start\n"); break;
+                                default:                                   std::printf("%#x\n", pcs.compositionState); break;
                             }
                             if (pcs.paletteUpdateFlag == 0x80) {
                                 std::printf("    + Palette update: True\n");
@@ -340,7 +340,7 @@ int main(int32_t argc, char** argv)
                                 zeroPcs.write(&zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
-                                zeroHeader.segmentType = 0x17; // WDS
+                                zeroHeader.segmentType = e_segmentType::wds; // WDS
                                 zeroHeader.dataLength = 10; //Length of upcoming WDS
                                 zeroHeader.write(&zeroBuffer[pos]);
                                 pos += 13;
@@ -354,7 +354,7 @@ int main(int32_t argc, char** argv)
                                 zeroWds.write(&zeroBuffer[pos]);
                                 pos += zeroHeader.dataLength;
 
-                                zeroHeader.segmentType = 0x80; // END
+                                zeroHeader.segmentType = e_segmentType::end; // END
                                 zeroHeader.dataLength = 0; //Length of upcoming END
                                 zeroHeader.write(&zeroBuffer[pos]);
                                 pos += 13;
@@ -383,7 +383,7 @@ int main(int32_t argc, char** argv)
                         pcs.write(&buffer[start + HEADER_SIZE]);
                     }
                     break;
-                case 0x17:
+                case e_segmentType::wds:
                     if (cmd.trace) {
                         std::printf("  + WDS Segment: offset %s\n", offsetString);
                     }
@@ -507,7 +507,7 @@ int main(int32_t argc, char** argv)
 
                     }
                     break;
-                case 0x80:
+                case e_segmentType::end:
                     if (cmd.trace) {
                         std::printf("  + END Segment: offset %s\n", offsetString);
                     }
@@ -556,7 +556,7 @@ int main(int32_t argc, char** argv)
 
                     //For Cut&Merge we only need to handle the header (for the PTS), the PCS (to
                     //get the compositionNumber) and the END segment (to know when it finished)
-                    if (header.segmentType == 0x16)
+                    if (header.segmentType == e_segmentType::pcs)
                     {
                         pcs = t_PCS::read(&buffer[start + HEADER_SIZE]);
                         if (!cutMerge_foundBegin) {
@@ -600,7 +600,7 @@ int main(int32_t argc, char** argv)
                         header.write(&buffer[start]);
                     }
 
-                    if (header.segmentType == 0x80)
+                    if (header.segmentType == e_segmentType::end)
                     {
                         if (cutMerge_foundEnd) {
                             if (cutMerge_keepSection) {

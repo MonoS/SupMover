@@ -1,5 +1,12 @@
 //Documentation: http://blog.thescorpius.com/index.php/2017/07/15/presentation-graphic-stream-sup-files-bluray-subtitle-format/
 
+enum e_segmentType : uint8_t {
+    pds = 0x14,
+    ods = 0x15,
+    pcs = 0x16,
+    wds = 0x17,
+    end = 0x80
+};
 struct t_header {
     uint16_t header;
     uint32_t pts;
@@ -29,6 +36,12 @@ struct t_WDS {
 };
 
 
+enum e_compositionState : uint8_t {
+    normal           = 0x00,
+    acquisitionPoint = 0x40,
+    epochStart       = 0x80,
+    epochContinue    = 0xC0
+};
 enum e_objectFlags : uint8_t {
     none    = 0x00,
     forced  = 0x40,
@@ -79,6 +92,11 @@ struct t_PDS {
 };
 
 
+enum e_sequenceFlag : uint8_t {
+    last         = 0x40,
+    first        = 0x80,
+    firstAndLast = 0xC0
+};
 struct t_ODS {
     uint16_t id;
     uint8_t  versionNumber;

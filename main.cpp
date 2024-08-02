@@ -198,12 +198,12 @@ int main(int32_t argc, char** argv)
                 }
                 if (doDelay) {
                     if (   cmd.delay < 0
-                        && header.pts1 < abs(cmd.delay)) {
+                        && header.pts < abs(cmd.delay)) {
                         std::fprintf(stderr, "Object at timestamp %s starts before the full delay amount, it was set to start at 0!\n", timestampString);
-                        header.pts1 = 0;
+                        header.pts = 0;
                     }
                     else {
-                        header.pts1 = header.pts1 + cmd.delay;
+                        header.pts = header.pts + cmd.delay;
                     }
                 }
 

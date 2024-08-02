@@ -197,7 +197,14 @@ int main(int32_t argc, char** argv)
                     header.pts = (uint32_t)std::round((double)header.pts * cmd.resync);
                 }
                 if (doDelay) {
-                    header.pts = header.pts + cmd.delay;
+                    if (   cmd.delay < 0
+                        && header.pts1 < abs(cmd.delay)) {
+                        std::fprintf(stderr, "Object at timestamp %s starts before the full delay amount, it was set to start at 0!\n", timestampString);
+                        header.pts1 = 0;
+                    }
+                    else {
+                        header.pts1 = header.pts1 + cmd.delay;
+                    }
                 }
 
                 if (doResync || doDelay) {

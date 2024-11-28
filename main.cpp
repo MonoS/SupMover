@@ -452,7 +452,7 @@ int main(int32_t argc, char** argv)
 
                                 if (wndRect.width > screenRect.width
                                     || wndRect.height > screenRect.height) {
-                                    std::fprintf(stderr, "Window is bigger then new screen area at timestamp %s\n", timestampString);
+                                    std::fprintf(stderr, "Window is bigger than new screen area at timestamp %s\n", timestampString);
                                     std::fprintf(stderr, "Implement it!\n");
                                     /*
                                     pcs.width = wndRect.width;

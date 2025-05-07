@@ -12,14 +12,14 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install dependencies
       run: sudo apt-get install -y make g++
     - name: Compile
       run: make
     - name: Strip binary
       run: strip supmover
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: supmover-linux
         path: supmover
@@ -29,12 +29,26 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Compile
       run: make
     - name: Strip binary
       run: strip supmover
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: supmover-macos
         path: supmover
+  
+  build-windows:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Compile
+        shell: cmd
+        run: ${{ '"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" && cl /nologo /O2 /Oi /Gy /GS /GL /fp:precise /EHsc /MD /Zc:inline /TP /analyze- /permissive- /Fesupmover.exe main.cpp' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supmover.exe
+          path: supmover.exe

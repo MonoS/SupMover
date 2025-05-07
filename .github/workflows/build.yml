@@ -38,3 +38,17 @@ jobs:
       with:
         name: supmover-macos
         path: supmover
+  
+  build-windows:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Compile
+        shell: cmd
+        run: ${{ '"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" && cl /nologo /O2 /Oi /Gy /GS /GL /fp:precise /EHsc /MD /Zc:inline /TP /analyze- /permissive- /Fesupmover.exe main.cpp' }
+      - uses: actions/upload-artifact@v3
+        with:
+          name: supmover.exe
+          path: supmover

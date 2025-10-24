@@ -652,7 +652,9 @@ int main(int32_t argc, char** argv)
     }
 
     std::fclose(input);
-    std::fclose(output);
+    if (output != nullptr) {
+        std::fclose(output);
+    }
 
     return 0;
 }

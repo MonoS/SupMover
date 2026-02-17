@@ -190,6 +190,11 @@ int main(int32_t argc, char** argv)
                 t_timestamp timestamp = ptsToTimestamp(header.pts);
                 char timestampString[13]; // max 99:99:99.999
                 std::snprintf(timestampString, 13, "%lu:%02lu:%02lu.%03lu", timestamp.hh, timestamp.mm, timestamp.ss, timestamp.ms);
+                
+                t_timestamp dtsTimestamp = ptsToTimestamp(header.dts);
+                char dtsTimestampString[13]; // max 99:99:99.999
+                std::snprintf(dtsTimestampString, 13, "%lu:%02lu:%02lu.%03lu", dtsTimestamp.hh, dtsTimestamp.mm, dtsTimestamp.ss, dtsTimestamp.ms);
+                
                 char offsetString[13];    // max 0xFFFFFFFFFF (1TB)
                 std::snprintf(offsetString, 13, "%#zx", start);
 
@@ -259,6 +264,7 @@ int main(int32_t argc, char** argv)
                     if (cmd.trace) {
                         std::printf("+ DS\n");
                         std::printf("  + PTS: %s\n", timestampString);
+                        std::printf("  + DTS: %s\n", dtsTimestampString);
                         std::printf("  + PCS Segment: offset %s\n", offsetString);
                     }
                     if (cmd.trace || doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {

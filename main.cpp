@@ -649,6 +649,8 @@ int main(int32_t argc, char** argv)
         if (doModification) {
             std::fwrite(newBuffer, newSize, 1, output);
         }
+        
+        std::free(buffer);
     }
 
     std::fclose(input);

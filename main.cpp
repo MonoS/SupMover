@@ -76,7 +76,9 @@ int searchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS
 }
 
 
-const char* usageHelp = R"(Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
+const char* usageHelp =
+R"(SupMover v2.4.4
+Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
   --trace

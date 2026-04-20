@@ -357,6 +357,7 @@ int main(int32_t argc, char** argv)
                                 uint8_t pos = 0;
                                 t_header zeroHeader(header);
                                 zeroHeader.pts = 0;
+                                zeroHeader.dts = 0;
                                 zeroHeader.dataLength = 11; //Length of upcoming PCS
                                 zeroHeader.write(&zeroBuffer[pos]);
                                 pos += 13;

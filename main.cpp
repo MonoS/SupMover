@@ -147,6 +147,10 @@ int main(int32_t argc, char** argv)
         }
     }
 
+    if(cmd.cutMerge.doCutMerge){
+        std:fprintf(stderr, "Cut&Merge functionality is experimental and will probably NOT work");
+    }
+
     std::fseek(input, 0, SEEK_END);
     size = newSize = std::ftell(input);
     if (size != 0) {

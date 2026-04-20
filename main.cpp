@@ -116,7 +116,7 @@ int main(int32_t argc, char** argv)
         return -1;
     }
 
-    if (std::filesystem::equivalent(cmd.inputFile, cmd.outputFile)){
+    if (std::filesystem::weakly_canonical(std::filesystem::absolute(cmd.inputFile)) == std::filesystem::weakly_canonical(std::filesystem::absolute(cmd.outputFile))){
         std::fprintf(stderr, "Input and output file are the same");
         return -1;
     }

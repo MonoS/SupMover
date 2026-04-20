@@ -7,6 +7,7 @@
 #include <cstring>
 #include <algorithm>
 #include <vector>
+#include <filesystem>
 #include "pgs.hpp"
 #include "cmd.hpp"
 
@@ -109,6 +110,10 @@ int main(int32_t argc, char** argv)
         return -1;
     }
 
+    if (std::filesystem::equivalent(cmd.inputFile, cmd.outputFile)){
+        std::fprintf(stderr, "Input and output file are the same");
+        return -1;
+    }
 
     bool doDelay   = cmd.delay != 0;
     bool doMove    = cmd.move.deltaX != 0 || cmd.move.deltaY != 0;
@@ -119,18 +124,18 @@ int main(int32_t argc, char** argv)
     bool doModification = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
     bool doAnalysis = cmd.trace;
 
-    FILE* input = std::fopen(cmd.inputFile, "rb");
+    FILE* input = std::fopen(cmd.inputFile.c_str(), "rb");
     if (input == nullptr) {
         std::fprintf(stderr, "Unable to open input file!\n");
         return -1;
     }
     FILE* output = nullptr;
     if (doModification) {
-        if (cmd.outputFile == nullptr) {
+        if (cmd.outputFile.empty()) {
             std::fprintf(stderr, "Specified options require an output file!\n");
             return -1;
         }
-        output = std::fopen(cmd.outputFile, "wb");
+        output = std::fopen(cmd.outputFile.c_str(), "wb");
         if (output == nullptr) {
             std::fprintf(stderr, "Unable to open output file!\n");
             std::fclose(input);

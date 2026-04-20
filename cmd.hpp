@@ -58,8 +58,8 @@ struct t_cutMerge {
 };
 
 struct t_cmd {
-    const char* inputFile = nullptr;
-    const char* outputFile = nullptr;
+    std::string inputFile;
+    std::string outputFile;
     bool trace = false;
     int32_t delay = 0;
     t_move move = {};

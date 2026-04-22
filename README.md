@@ -8,7 +8,7 @@ Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 OPTIONS:
   --trace
   --delay <ms>
-  --move <delta x> <delta y>
+  --move <delta x> <delta y> <optional -s>
   --crop <left> <top> <right> <bottom>
   --resync (<num>/<den> | <multFactor>)
   --add_zero
@@ -32,6 +32,7 @@ CUT&MERGE OPTIONS:
 * `--move`
   * Shift the windows position of all subpic by the inputed parameters (the image data is left untouched).
   * Position is clamped to the screen edges so that windows are always fully contained within the screen area.
+  * The Sub-flag "-s" allows for symmetrically moving subtitles. For example, `--move 0 5 -s` will move all subtitles below the halfway point of the screen down, and those above the halfway point will be shifted up. 
 * `--crop`
   * Crop the windows area of all subpic by the inputed parameters.
   * This is done losslessly by only shifting the windows position (the image data is left untouched).

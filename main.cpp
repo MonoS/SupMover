@@ -83,7 +83,7 @@ Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 OPTIONS:
   --trace
   --delay <ms>
-  --move <delta x> <delta y>
+  --move <delta x> <delta y> <optional -s>
   --crop <left> <top> <right> <bottom>
   --resync (<num>/<den> | <multFactor>)
   --add_zero
@@ -435,15 +435,33 @@ int main(int32_t argc, char** argv)
                         }
 
                         if (doMove) {
+                            const int16_t videoCenterX = pcs.width / 2; //setup halfway points for optional symmetry flag.
+                            const int16_t videoCenterY = pcs.height / 2; //maybe move inside if statement somewhere?
                             for (int i = 0; i < wds.numberOfWindows; i++) {
                                 t_window *window = &wds.windows[i];
+
+                                const int16_t windowCenterX = window->horizontalPosition + (window->width / 2); //get the coords for the center of the subtitle window
+                                const int16_t windowCenterY = window->verticalPosition + (window->height / 2);
+                                const bool isBesideHalfway = (windowCenterX < videoCenterX); //check if center of subtitle window is past the halfway mark for the video
+                                const bool isAboveHalfway = (windowCenterY < videoCenterY);
+                                int16_t effectiveDeltaX = cmd.move.deltaX; //pass desired move amount to variable for potential editing.
+                                int16_t effectiveDeltaY = cmd.move.deltaY;
+                                //todo: more elegant way of doing this? maybe some way of quitting early for movement values of 0
+                                //better way than this or nested if-statements?
+                                if (isBesideHalfway && cmd.move.symmetrical) { 
+                                    effectiveDeltaX = -effectiveDeltaX;
+                                }
+                                if (isAboveHalfway && cmd.move.symmetrical) {
+                                    effectiveDeltaY = -effectiveDeltaY;
+                                }
+                                
                                 int16_t minDeltaX = -(int16_t)window->horizontalPosition;
                                 int16_t minDeltaY = -(int16_t)window->verticalPosition;
                                 int16_t maxDeltaX = pcs.width - (window->horizontalPosition + window->width);
                                 int16_t maxDeltaY = pcs.height - (window->verticalPosition + window->height);
-                                int16_t clampedDeltaX = std::min(std::max(cmd.move.deltaX, minDeltaX), maxDeltaX);
-                                int16_t clampedDeltaY = std::min(std::max(cmd.move.deltaY, minDeltaY), maxDeltaY);
-
+                                int16_t clampedDeltaX = std::min(std::max(effectiveDeltaX, minDeltaX), maxDeltaX);
+                                int16_t clampedDeltaY = std::min(std::max(effectiveDeltaY, minDeltaY), maxDeltaY);
+                                
                                 window->horizontalPosition += clampedDeltaX;
                                 window->verticalPosition += clampedDeltaY;
 

@@ -245,6 +245,11 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             if (remaining < 2) return false;
             cmd.move.deltaX = atoi(argv[i++]);
             cmd.move.deltaY = atoi(argv[i++]);
+            cmd.move.symmetrical = false;
+            if (remaining >= 3 && std::string(argv[i]) == "-s") {
+                cmd.move.symmetrical = true;
+                i++;
+            }
         }
         else if (arg == "crop" || arg == "--crop") {
             if (remaining < 4) return false;

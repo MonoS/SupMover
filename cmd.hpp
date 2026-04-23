@@ -10,6 +10,7 @@ struct t_timestamp {
 struct t_move {
     int16_t deltaX;
     int16_t deltaY;
+    bool symmetrical;
 };
 
 struct t_crop {

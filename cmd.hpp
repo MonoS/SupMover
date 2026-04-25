@@ -10,6 +10,7 @@ struct t_timestamp {
 struct t_move {
     int16_t deltaX;
     int16_t deltaY;
+    bool symmetrical = false; //setting false by default as a safety thing
 };
 
 struct t_crop {
@@ -245,6 +246,10 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             if (remaining < 2) return false;
             cmd.move.deltaX = atoi(argv[i++]);
             cmd.move.deltaY = atoi(argv[i++]);
+        }
+        else if (arg == "symmetrical" || arg == "--symmetrical") {
+            cmd.move.symmetrical = true;
+            i++;
         }
         else if (arg == "crop" || arg == "--crop") {
             if (remaining < 4) return false;

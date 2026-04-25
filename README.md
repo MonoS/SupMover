@@ -9,6 +9,7 @@ OPTIONS:
   --trace
   --delay <ms>
   --move <delta x> <delta y>
+  --symmetrical
   --crop <left> <top> <right> <bottom>
   --resync (<num>/<den> | <multFactor>)
   --add_zero
@@ -32,6 +33,9 @@ CUT&MERGE OPTIONS:
 * `--move`
   * Shift the windows position of all subpic by the inputed parameters (the image data is left untouched).
   * Position is clamped to the screen edges so that windows are always fully contained within the screen area.
+* `--symmetrical`
+  * For the upper half of the video frame, this reverses vertical movement offsets (for the `--move` command described above). Similarly, this also reverses horizontal movement offsets for the left half of the video frame. This affects both vertical and horizontal at the same time, so if symmetrical movement is only desired on  one axis, you must execute supmover twice.
+  * For example, `--symmetrical --move 0 15` will move all subtitles in the lower half down, and the upper half will be moved upwards, but they will not be moved sideways. `--move -20 0 --symmetrical` will result in all subtitles on the right half of the screen moving inwards in a left direction, and all subtitles on the left will move inwards in a right direction, without affecting their vertical positioning. 
 * `--crop`
   * Crop the windows area of all subpic by the inputed parameters.
   * This is done losslessly by only shifting the windows position (the image data is left untouched).

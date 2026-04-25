@@ -83,7 +83,8 @@ Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 OPTIONS:
   --trace
   --delay <ms>
-  --move <delta x> <delta y> <optional -s>
+  --move <delta x> <delta y>
+  --symmetrical
   --crop <left> <top> <right> <bottom>
   --resync (<num>/<den> | <multFactor>)
   --add_zero

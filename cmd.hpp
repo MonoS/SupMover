@@ -7,10 +7,18 @@ struct t_timestamp {
     unsigned long ms;
 };
 
+struct t_listSection {
+    uint32_t begin;
+    uint32_t end;
+    uint32_t delay_until;
+};
+
 struct t_move {
     int16_t deltaX;
     int16_t deltaY;
     bool symmetrical = false; //setting false by default as a safety thing
+std::string listMove;
+    std::vector<t_listSection> sectionMove;
 };
 
 struct t_crop {
@@ -36,12 +44,6 @@ enum e_listTimeMode : uint8_t {
 enum e_cutMergeFixMode : uint8_t {
     del = 0, //delete section if not fully contained
     cut = 0  //cut begin and/or end to match current section
-};
-
-struct t_listSection {
-    uint32_t begin;
-    uint32_t end;
-    uint32_t delay_until;
 };
 
 bool compareListSection(t_listSection a, t_listSection b) {
@@ -124,7 +126,7 @@ uint32_t timestampToPTS(char* timestamp) {
     return (uint32_t)std::round(((( (hh * 60 * 60) + (mm * 60) + ss) * 1000) + ms) * MS_TO_PTS_MULT);
 }
 
-bool parseListSection(std::string list, std::vector<t_listSection> sections, t_listOption listOption) {
+bool parseListSection(std::string list, std::vector<t_listSection>& sections, t_listOption listOption) {
     std::string pattern;
 
     switch (listOption.format)
@@ -383,6 +385,13 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                 cmd.cutMerge.fixMode = e_cutMergeFixMode::del;
             }
         }
+        else if (arg == "move-list" || arg == "--move-list"){
+            if (remaining < 1) return false;
+            std::string list = argv[i++];
+            toLower(list);
+
+            cmd.move.listMove = list;
+        }
         else {
             recognizedOption = false;
         }
@@ -401,13 +410,19 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
     if (   cmd.listOption.format   == e_listFormat::vapoursynth
         && cmd.listOption.timeMode == e_listTimeMode::timestamp) {
-        std::fprintf(stderr, "Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
+        std::fprintf(stderr, "List format mode VapourSynth cannot be used alongside timestamp time mode\n");
 
         return false;
     }
 
     if (cmd.cutMerge.doCutMerge) {
         if (!parseListSection(cmd.cutMerge.list, cmd.cutMerge.section, cmd.listOption)) {
+            return false;
+        }
+    }
+    
+    if (!cmd.move.listMove.empty()){
+        if (!parseListSection(cmd.move.listMove, cmd.move.sectionMove, cmd.listOption)) {
             return false;
         }
     }
@@ -425,6 +440,7 @@ OPTIONS:
   --delay <ms>
   --move <delta x> <delta y>
   --symmetrical
+  --move-list <list of sections>
     --crop <left> <top> <right> <bottom>
   --resync (<num>/<den> | <multFactor>)
   --add_zero
@@ -441,11 +457,13 @@ EXPLANATION
     delay: move all timestamp by the specified ms
     resync: speedup or speedown all timestamp by the specified amount
     move: move the position of all subpitcure by the specified amount (move is always done before crop)
+    symmetrical: apply the move command in a symmetrical way towards the center
+    move-list: apply the move command only to the specified sections
     crop: shrink the image area by the specified amount, if the image is outside the new area it will be moved (crop is always done after move)
     add_zero: add a dummy section at the beginning useful for some player
     tonemap: lower or increase the brightness of the image
-    cutmerge_list: cut all the section and merge them to a new file (currently confirmed not working)
-    cutmerge_fixmode: determine the way in which to handle subtitle which are partially contained inside a section
+    cutmerge-list: cut all the section and merge them to a new file (currently confirmed not working)
+    cutmerge-fixmode: determine the way in which to handle subtitle which are partially contained inside a section
     set/unsetforced_list: set or unset the forced flag in the specified sections
 
 Delay and resync command are executed in the order supplied.

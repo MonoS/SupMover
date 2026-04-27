@@ -75,6 +75,22 @@ int searchSectionByPTS(std::vector<t_listSection> section, uint32_t beginPTS, ui
     return -1;
 }
 
+bool isSegmentInSection(std::vector<t_listSection> section, uint32_t PTS){
+    if (section.size() == 0){
+        return true;
+    } 
+
+    for (int i = 0; i < (int)section.size(); i++) {
+        t_listSection currSection = section[i];
+
+        if(currSection.begin <= PTS && PTS <= currSection.end){
+            return true;
+        }
+    }
+
+    return false;
+}
+
 int main(int32_t argc, char** argv)
 {
     size_t size, newSize;
@@ -409,7 +425,7 @@ int main(int32_t argc, char** argv)
                             }
                         }
 
-                        if (doMove) {
+                        if (doMove && isSegmentInSection(cmd.move.sectionMove, header.pts)) {
                             const int16_t videoCenterX = pcs.width / 2; //setup halfway points for optional symmetry flag.
                             const int16_t videoCenterY = pcs.height / 2; //maybe move inside if statement somewhere?
                             for (int i = 0; i < wds.numberOfWindows; i++) {

@@ -20,14 +20,14 @@ struct t_crop {
     uint16_t bottom;
 };
 
-enum e_cutMergeFormat : uint8_t {
-    secut = 0,       //"[1000-2000] [3000-4000]" both inclusive
+enum e_listFormat : uint8_t {
+    secut       = 0, //"1000-2000;3000-4000" both inclusive
     vapoursynth = 1, //"[1000:2001] [3000:4001]" start inclusive, end exclusive
-    avisynth = 2,    //"(1000,2000) (3000,4000)" both inclusive
-    remap = 3        //"[1000 2000] [3000 4000]" both inclusive
+    avisynth    = 2, //"(1000,2000) (3000,4000)" both inclusive
+    remap       = 3  //"[1000 2000] [3000 4000]" both inclusive
 };
 
-enum e_cutMergeTimeMode : uint8_t {
+enum e_listTimeMode : uint8_t {
     ms = 0,
     frame = 1,
     timestamp = 2
@@ -38,23 +38,27 @@ enum e_cutMergeFixMode : uint8_t {
     cut = 0  //cut begin and/or end to match current section
 };
 
-struct t_cutMergeSection {
+struct t_listSection {
     uint32_t begin;
     uint32_t end;
     uint32_t delay_until;
 };
 
-bool compareCutMergeSection(t_cutMergeSection a, t_cutMergeSection b) {
+bool compareListSection(t_listSection a, t_listSection b) {
     return (a.begin < b.begin);
 }
 
+struct t_listOption {
+    e_listFormat format     = e_listFormat::secut;
+    e_listTimeMode timeMode = e_listTimeMode::timestamp;
+    double fps;
+};
+
 struct t_cutMerge {
     bool doCutMerge = false;
-    e_cutMergeFormat format;
-    e_cutMergeTimeMode timeMode;
-    e_cutMergeFixMode fixMode;
-    double fps;
+    e_cutMergeFixMode fixMode = e_cutMergeFixMode::cut;
     std::string list;
+    std::vector<t_listSection> section;
     std::vector<t_cutMergeSection> section;
 };
 
@@ -68,7 +72,9 @@ struct t_cmd {
     double resync = 1;
     bool addZero = false;
     double tonemap = 1;
+    t_listOption listOption = {};
     t_cutMerge cutMerge = {};
+    t_toggleForced toggleForced = {};
 };
 
 
@@ -93,39 +99,52 @@ t_timestamp ptsToTimestamp(uint32_t pts) {
     return res;
 }
 
-int timestampToMs(char* timestamp) {
+uint32_t timestampToPTS(char* timestamp) {
     int tokenRead;
-    int hh, mm, ss, ms;
+    int hh, mm, ss;
+    double ms;
+    char str_ms[11];
+    int msDecimals = 0;
+    char *errPtr = nullptr;
 
-    tokenRead = std::sscanf(timestamp, "%d:%d:%d.%d", &hh, &mm, &ss, &ms);
+    tokenRead = std::sscanf(timestamp, "%d:%d:%d.%10s", &hh, &mm, &ss, str_ms);
     if (tokenRead != 4) {
         return -1;
     }
 
-    return ((((hh * 60 * 60) + (mm * 60) + ss) * 1000) + ms);
+    //We want to obtain the milliseconds, so at least 3 decimals
+    msDecimals = strnlen(str_ms, 10) - 3;
+
+    ms = strtod(str_ms, &errPtr);
+    if (*errPtr != '\0'){
+        return -1;
+    }
+    ms = ms / std::pow(10, msDecimals);
+
+    return (uint32_t)std::round(((( (hh * 60 * 60) + (mm * 60) + ss) * 1000) + ms) * MS_TO_PTS_MULT);
 }
 
-bool parseCutMerge(t_cutMerge* cutMerge) {
+bool parseListSection(std::string list, std::vector<t_listSection> sections, t_listOption listOption) {
     std::string pattern;
 
-    switch (cutMerge->format)
+    switch (listOption.format)
     {
-    case e_cutMergeFormat::secut:
+    case e_listFormat::secut:
     {
         pattern = "%[0123456789:.]-%[0123456789:.]%n";
         break;
     }
-    case e_cutMergeFormat::vapoursynth:
+    case e_listFormat::vapoursynth:
     {
         pattern = "[%[0123456789]:%[0123456789]]%n";
         break;
     }
-    case e_cutMergeFormat::avisynth:
+    case e_listFormat::avisynth:
     {
         pattern = "(%[0123456789:.],%[0123456789:.])%n";
         break;
     }
-    case e_cutMergeFormat::remap:
+    case e_listFormat::remap:
     {
         pattern = "[%[0123456789:.] %[0123456789:.]]%n";
         break;
@@ -138,43 +157,41 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
     int beg, end;
     int charRead, tokenRead;
 
-    std::string list = cutMerge->list;
-
     do {
         tokenRead = std::sscanf(list.c_str(), pattern.c_str(), strBeg, strEnd, &charRead);
         if (tokenRead != 2) {
             return false;
         }
 
-        t_cutMergeSection section = {};
-        switch (cutMerge->timeMode)
+        t_listSection section = {};
+        switch (listOption.timeMode)
         {
-        case e_cutMergeTimeMode::ms:
+        case e_listTimeMode::ms:
         {
             beg = std::atoi(strBeg);
             end = std::atoi(strEnd);
 
             section.begin = (uint32_t)std::round(beg * MS_TO_PTS_MULT);
-            section.end = (uint32_t)std::round(end * MS_TO_PTS_MULT);
+            section.end   = (uint32_t)std::round(end * MS_TO_PTS_MULT);
             break;
         }
-        case e_cutMergeTimeMode::frame:
+        case e_listTimeMode::frame:
         {
             beg = std::atoi(strBeg);
             end = std::atoi(strEnd);
 
-            if (cutMerge->format == e_cutMergeFormat::vapoursynth) {
+            if (listOption.format == e_listFormat::vapoursynth) {
                 end--;
             }
 
-            section.begin = (uint32_t)std::round(((double)beg) / cutMerge->fps * MS_TO_PTS_MULT);
-            section.end = (uint32_t)std::round(((double)end) / cutMerge->fps * MS_TO_PTS_MULT);
+            section.begin = (uint32_t)std::round(((double)beg) / listOption.fps * MS_TO_PTS_MULT);
+            section.end   = (uint32_t)std::round(((double)end) / listOption.fps * MS_TO_PTS_MULT);
             break;
         }
-        case e_cutMergeTimeMode::timestamp:
+        case e_listTimeMode::timestamp:
         {
-            beg = timestampToMs(strBeg);
-            end = timestampToMs(strEnd);
+            beg = timestampToPTS(strBeg);
+            end = timestampToPTS(strEnd);
             if (beg == -1) {
                 std::fprintf(stderr, "Timestamp %s is invalid\n", strBeg);
                 return false;
@@ -184,15 +201,15 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
                 return false;
             }
 
-            section.begin = (uint32_t)std::round(beg * MS_TO_PTS_MULT);
-            section.end = (uint32_t)std::round(end * MS_TO_PTS_MULT);
+            section.begin = beg;
+            section.end   = end;
             break;
         }
         default:
             break;
         }
 
-        cutMerge->section.push_back(section);
+        sections.push_back(section);
 
         if (charRead + 1 < (int)list.length()) {
             list = list.substr(charRead + 1, list.length());
@@ -202,12 +219,12 @@ bool parseCutMerge(t_cutMerge* cutMerge) {
         }
     } while (list.length() > 0);
 
-    std::sort(cutMerge->section.begin(), cutMerge->section.end(), compareCutMergeSection);
+    std::sort(sections.begin(), sections.end(), compareListSection);
 
     int32_t runningDelay = 0;
-    for (int i = 0; i < (int)cutMerge->section.size(); i++) {
-        cutMerge->section[i].delay_until = runningDelay + cutMerge->section[i].begin;
-        runningDelay += (cutMerge->section[i].begin - cutMerge->section[i].end);
+    for (int i = 0; i < (int)sections.size(); i++) {
+        sections[i].delay_until = runningDelay + sections[i].begin;
+        runningDelay += (sections[i].begin - sections[i].end);
     }
 
     return true;
@@ -292,48 +309,47 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             if (remaining < 1) return false;
             cmd.tonemap = std::atof(argv[i++]);
         }
-        else if (arg == "cut_merge" || arg == "--cut_merge") {
-            cmd.cutMerge.doCutMerge = true;
-        }
-        else if (arg == "format" || arg == "--format") {
+        else if (arg == "list-format" || arg == "--list-format") {
             if (remaining < 1) return false;
             std::string formatMode = argv[i++];
             toLower(formatMode);
 
             if (formatMode == "secut") {
-                cmd.cutMerge.format = e_cutMergeFormat::secut;
+                cmd.listOption.format = e_listFormat::secut;
             }
             else if (formatMode == "vapoursynth" || formatMode == "vs") {
-                cmd.cutMerge.format = e_cutMergeFormat::vapoursynth;
+                cmd.listOption.format = e_listFormat::vapoursynth;
             }
             else if (formatMode == "avisynth" || formatMode == "avs") {
-                cmd.cutMerge.format = e_cutMergeFormat::avisynth;
+                cmd.listOption.format = e_listFormat::avisynth;
             }
             else if (formatMode == "remap") {
-                cmd.cutMerge.format = e_cutMergeFormat::remap;
+                cmd.listOption.format = e_listFormat::remap;
             }
             else {
                 return false;
             }
         }
-        else if (arg == "list" || arg == "--list") {
+        else if (arg == "cutmerge-list" || arg == "--cutmerge-list") {
             if (remaining < 1) return false;
             std::string list = argv[i++];
             toLower(list);
 
             cmd.cutMerge.list = list;
+
+            cmd.cutMerge.doCutMerge = true;
         }
-        else if (arg == "timemode" || arg == "--timemode") {
+        else if (arg == "list-timemode" || arg == "--list-timemode") {
             if (remaining < 1) return false;
             std::string timemode = argv[i++];
             toLower(timemode);
 
             if (timemode == "ms") {
-                cmd.cutMerge.timeMode = e_cutMergeTimeMode::ms;
+                cmd.listOption.timeMode = e_listTimeMode::ms;
             }
             else if (timemode == "frame") {
                 if (remaining < 2) return false;
-                cmd.cutMerge.timeMode = e_cutMergeTimeMode::frame;
+                cmd.listOption.timeMode = e_listTimeMode::frame;
                 std::string strFactor = argv[i];
 
                 size_t idx = strFactor.find("/");
@@ -341,21 +357,21 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
                     double num = std::atof(strFactor.substr(0, idx).c_str());
                     double den = std::atof(strFactor.substr(idx + 1, strFactor.length()).c_str());
 
-                    cmd.cutMerge.fps = num / den;
+                    cmd.listOption.fps = num / den;
                 }
                 else {
-                    cmd.cutMerge.fps = std::atof(argv[i]);
+                    cmd.listOption.fps = std::atof(argv[i]);
                 }
                 i++;
             }
             else if (timemode == "timestamp") {
-                cmd.cutMerge.timeMode = e_cutMergeTimeMode::timestamp;
+                cmd.listOption.timeMode = e_listTimeMode::timestamp;
             }
             else {
                 return false;
             }
         }
-        else if (arg == "fixmode" || arg == "--fixmode") {
+        else if (arg == "cutmerge-fixmode" || arg == "--cutmerge-fixmode") {
             if (remaining < 1) return false;
             std::string fixmode = argv[i++];
             toLower(fixmode);
@@ -383,18 +399,54 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
         }
     }
 
+    if (   cmd.listOption.format   == e_listFormat::vapoursynth
+        && cmd.listOption.timeMode == e_listTimeMode::timestamp) {
+        std::fprintf(stderr, "Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
+
+        return false;
+    }
+
     if (cmd.cutMerge.doCutMerge) {
-        if (   cmd.cutMerge.format   == e_cutMergeFormat::vapoursynth
-            && cmd.cutMerge.timeMode == e_cutMergeTimeMode::timestamp) {
-            std::fprintf(stderr, "Compat mode VapourSynth cannot be used alongside timestamp time mode\n");
-
-            return false;
-        }
-
-        if (!parseCutMerge(&cmd.cutMerge)) {
+        if (!parseListSection(cmd.cutMerge.list, cmd.cutMerge.section, cmd.listOption)) {
             return false;
         }
     }
 
     return true;
 }
+
+
+const char* usageHelp =
+R"(SupMover v2.5.0
+Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
+
+OPTIONS:
+  --trace
+  --delay <ms>
+  --move <delta x> <delta y>
+  --symmetrical
+    --crop <left> <top> <right> <bottom>
+  --resync (<num>/<den> | <multFactor>)
+  --add_zero
+  --tonemap <perc>
+  --cutmerge-list <list of sections> [--cutmerge-fixmode ({cut} | (del | delete))]
+    [LIST FORMAT OPTION]
+
+LIST FORMAT OPTION
+  --list-format ({secut} | (vapoursynth | vs) | (avisynth | avs) | remap)
+  --list-timemode ({timestamp} | ms | frame (<num>/<den> | <fps>))
+
+EXPLANATION
+    trace: output the content of the SUP file
+    delay: move all timestamp by the specified ms
+    resync: speedup or speedown all timestamp by the specified amount
+    move: move the position of all subpitcure by the specified amount (move is always done before crop)
+    crop: shrink the image area by the specified amount, if the image is outside the new area it will be moved (crop is always done after move)
+    add_zero: add a dummy section at the beginning useful for some player
+    tonemap: lower or increase the brightness of the image
+    cutmerge_list: cut all the section and merge them to a new file (currently confirmed not working)
+    cutmerge_fixmode: determine the way in which to handle subtitle which are partially contained inside a section
+    set/unsetforced_list: set or unset the forced flag in the specified sections
+
+Delay and resync command are executed in the order supplied.
+)";

@@ -42,9 +42,9 @@ bool rectIsContained(t_rect container, t_rect window) {
     }
 }
 
-int searchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS, uint32_t endPTS, e_cutMergeFixMode fixMode) {
+int searchSectionByPTS(std::vector<t_listSection> section, uint32_t beginPTS, uint32_t endPTS, e_cutMergeFixMode fixMode) {
     for (int i = 0; i < (int)section.size(); i++) {
-        t_cutMergeSection currSection = section[i];
+        t_listSection currSection = section[i];
         int found = 0;
 
         if (currSection.begin <= beginPTS
@@ -74,32 +74,6 @@ int searchSectionByPTS(std::vector<t_cutMergeSection> section, uint32_t beginPTS
 
     return -1;
 }
-
-
-const char* usageHelp =
-R"(SupMover v2.4.4
-Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
-
-OPTIONS:
-  --trace
-  --delay <ms>
-  --move <delta x> <delta y>
-  --symmetrical
-  --crop <left> <top> <right> <bottom>
-  --resync (<num>/<den> | <multFactor>)
-  --add_zero
-  --tonemap <perc>
-  --cut_merge [CUT&MERGE OPTIONS ...]
-
-CUT&MERGE OPTIONS:
-  --list <list of sections>
-  --format (secut | (vapoursynth | vs) | (avisynth | avs) | remap)
-  --timemode (ms | frame (<num>/<den> | <fps>) | timestamp)
-  --fixmode (cut | (delete | del))
-
-Delay and resync command are executed in the order supplied.
-)";
-
 
 int main(int32_t argc, char** argv)
 {
@@ -180,7 +154,7 @@ int main(int32_t argc, char** argv)
             bool fixPCS = false;
 
             std::vector<t_compositionNumberToSaveInfo> cutMerge_compositionNumberToSave = {};
-            t_cutMergeSection cutMerge_currentSection = {};
+            t_listSection cutMerge_currentSection = {};
             size_t cutMerge_offsetBeginCopy = 0;
             size_t cutMerge_offsetEndCopy = 0;
             size_t cutMerge_currentNewBufferSize = 0;
@@ -462,7 +436,7 @@ int main(int32_t argc, char** argv)
                                 int16_t maxDeltaY = pcs.height - (window->verticalPosition + window->height);
                                 int16_t clampedDeltaX = std::min(std::max(effectiveDeltaX, minDeltaX), maxDeltaX);
                                 int16_t clampedDeltaY = std::min(std::max(effectiveDeltaY, minDeltaY), maxDeltaY);
-                                
+
                                 window->horizontalPosition += clampedDeltaX;
                                 window->verticalPosition += clampedDeltaY;
 

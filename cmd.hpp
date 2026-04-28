@@ -483,7 +483,7 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
 
 const char* usageHelp =
-R"(SupMover v2.5.0
+R"_(SupMover v2.5.0
 Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
@@ -506,6 +506,8 @@ OPTIONS:
 LIST FORMAT OPTION
   --list-format ({secut} | (vapoursynth | vs) | (avisynth | avs) | remap)
   --list-timemode ({timestamp} | ms | frame (<num>/<den> | <fps>))
+  
+Delay and resync command are executed in the order supplied.
 
 EXPLANATION
     trace: output the content of the SUP file
@@ -519,8 +521,15 @@ EXPLANATION
     tonemap: lower or increase the brightness of the image
     cutmerge-list: cut all the section and merge them to a new file (currently confirmed not working)
     cutmerge-fixmode: determine the way in which to handle subtitle which are partially contained inside a section
-    set/unsetforced: set or unset all subtitle as forced forced flag
+    set/unsetforced: set or unset all subtitles as forced
     set/unsetforced-list: set or unset the subtitle in the specified sections as forced
-
-Delay and resync command are executed in the order supplied.
-)";
+    list-format:
+      secut: uses the same format as SECut, eg "1000-2000;3000-4000"
+      vs: uses the same format as VapourSynth splice command, eg "[1000:2000] [3000:4000]", for mode frame the end range is exclusive
+      avs: uses the same format as AviSynth trim command, eg "(1000,2000) (3000,4000)"
+      remap: uses the same format as RemapFrames ReplaceFrameSimple plugin, eg "[1000 2000] [3000 4000]"
+    list-timemode:
+      ms: times specified in milliseconds
+      frame: times specified in frames
+      timestamp: times specified as timestamp
+)_";

@@ -118,7 +118,7 @@ int main(int32_t argc, char** argv)
     bool doResync  = cmd.resync != 1;
     bool doTonemap = cmd.tonemap != 1;
 
-    bool doModification = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge;
+    bool doModification = doDelay || doMove || doCrop || doResync || cmd.addZero || doTonemap || cmd.cutMerge.doCutMerge || cmd.toggleForced.doToggleForced;
     bool doAnalysis = cmd.trace;
 
     FILE* input = std::fopen(cmd.inputFile.c_str(), "rb");
@@ -273,7 +273,7 @@ int main(int32_t argc, char** argv)
                         std::printf("  + DTS: %s\n", dtsTimestampString);
                         std::printf("  + PCS Segment: offset %s\n", offsetString);
                     }
-                    if (cmd.trace || doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge) {
+                    if (cmd.trace || doMove | doCrop || cmd.addZero || cmd.cutMerge.doCutMerge || cmd.toggleForced.doToggleForced) {
                         pcs = t_PCS::read(&buffer[start + HEADER_SIZE]);
                         offsetCurrPCS = start;
 
@@ -338,6 +338,18 @@ int main(int32_t argc, char** argv)
                                 }
                                 else {
                                     pcs.compositionObjects[i].verticalPosition -= cmd.crop.top;
+                                }
+                            }
+                        }
+
+                        if (cmd.toggleForced.doToggleForced) {
+                            for (int i = 0; i < pcs.numberOfCompositionObjects; i++) {
+                                if (cmd.toggleForced.doSetForced && isSegmentInSection(cmd.toggleForced.sectionSet, header.pts)){
+                                    pcs.compositionObjects[i].croppedAndForcedFlag |= e_objectFlags::forced;
+                                }
+                                
+                                if (cmd.toggleForced.doUnsetForced && isSegmentInSection(cmd.toggleForced.sectionUnset, header.pts)){
+                                    pcs.compositionObjects[i].croppedAndForcedFlag &= ~e_objectFlags::forced;
                                 }
                             }
                         }

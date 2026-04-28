@@ -17,7 +17,7 @@ struct t_move {
     int16_t deltaX;
     int16_t deltaY;
     bool symmetrical = false; //setting false by default as a safety thing
-std::string listMove;
+    std::string listMove;
     std::vector<t_listSection> sectionMove;
 };
 
@@ -26,6 +26,18 @@ struct t_crop {
     uint16_t top;
     uint16_t right;
     uint16_t bottom;
+};
+
+struct t_toggleForced {
+    bool doToggleForced = false;
+
+    bool doSetForced = false;
+    std::string listSet;
+    std::vector<t_listSection> sectionSet;
+
+    bool doUnsetForced = false;
+    std::string listUnset;
+    std::vector<t_listSection> sectionUnset;
 };
 
 enum e_listFormat : uint8_t {
@@ -61,7 +73,6 @@ struct t_cutMerge {
     e_cutMergeFixMode fixMode = e_cutMergeFixMode::cut;
     std::string list;
     std::vector<t_listSection> section;
-    std::vector<t_cutMergeSection> section;
 };
 
 struct t_cmd {
@@ -341,6 +352,34 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
             cmd.cutMerge.doCutMerge = true;
         }
+        else if (arg == "setforced" || arg == "--setforced"){
+            cmd.toggleForced.doToggleForced = true;
+            cmd.toggleForced.doSetForced = true;
+        }
+        else if (arg == "setforced-list" || arg == "--setforced-list"){
+            if (remaining < 1) return false;
+            std::string list = argv[i++];
+            toLower(list);
+
+            cmd.toggleForced.listSet = list;
+
+            cmd.toggleForced.doToggleForced = true;
+            cmd.toggleForced.doSetForced = true;
+        }
+        else if (arg == "unsetforced" || arg == "--unsetforced"){
+            cmd.toggleForced.doToggleForced = true;
+            cmd.toggleForced.doUnsetForced = true;
+        }
+        else if (arg == "unsetforced-list" || arg == "--unsetforced-list"){
+            if (remaining < 1) return false;
+            std::string list = argv[i++];
+            toLower(list);
+
+            cmd.toggleForced.listUnset = list;
+
+            cmd.toggleForced.doToggleForced = true;
+            cmd.toggleForced.doUnsetForced = true;
+        }
         else if (arg == "list-timemode" || arg == "--list-timemode") {
             if (remaining < 1) return false;
             std::string timemode = argv[i++];
@@ -426,6 +465,18 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
             return false;
         }
     }
+    
+    if (!cmd.toggleForced.listSet.empty()){
+        if (!parseListSection(cmd.toggleForced.listSet, cmd.toggleForced.sectionSet, cmd.listOption)) {
+            return false;
+        }
+    }
+    
+    if (!cmd.toggleForced.listUnset.empty()){
+        if (!parseListSection(cmd.toggleForced.listUnset, cmd.toggleForced.sectionUnset, cmd.listOption)) {
+            return false;
+        }
+    }
 
     return true;
 }
@@ -441,12 +492,16 @@ OPTIONS:
   --move <delta x> <delta y>
   --symmetrical
   --move-list <list of sections>
-    --crop <left> <top> <right> <bottom>
+  --crop <left> <top> <right> <bottom>
   --resync (<num>/<den> | <multFactor>)
   --add_zero
   --tonemap <perc>
   --cutmerge-list <list of sections> [--cutmerge-fixmode ({cut} | (del | delete))]
-    [LIST FORMAT OPTION]
+  --setforced
+  --setforced-list <list of sections>
+  --unsetforced
+  --unsetforced-list <list of sections>
+  [LIST FORMAT OPTION]
 
 LIST FORMAT OPTION
   --list-format ({secut} | (vapoursynth | vs) | (avisynth | avs) | remap)
@@ -464,7 +519,8 @@ EXPLANATION
     tonemap: lower or increase the brightness of the image
     cutmerge-list: cut all the section and merge them to a new file (currently confirmed not working)
     cutmerge-fixmode: determine the way in which to handle subtitle which are partially contained inside a section
-    set/unsetforced_list: set or unset the forced flag in the specified sections
+    set/unsetforced: set or unset all subtitle as forced forced flag
+    set/unsetforced-list: set or unset the subtitle in the specified sections as forced
 
 Delay and resync command are executed in the order supplied.
 )";

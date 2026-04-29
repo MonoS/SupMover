@@ -279,7 +279,6 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
         }
         else if (arg == "symmetrical" || arg == "--symmetrical") {
             cmd.move.symmetrical = true;
-            i++;
         }
         else if (arg == "crop" || arg == "--crop") {
             if (remaining < 4) return false;

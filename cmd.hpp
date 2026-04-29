@@ -482,7 +482,7 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 
 
 const char* usageHelp =
-R"_(SupMover v2.5.0
+R"_(SupMover v2.5.1
 Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:

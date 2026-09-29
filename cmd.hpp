@@ -481,9 +481,11 @@ bool parseCMD(int32_t argc, char** argv, t_cmd& cmd) {
 }
 
 
+#define SUPMOVER_VERSION "2.5.1"
+
 const char* usageHelp =
-R"_(SupMover v2.5.1
-Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
+"SupMover v" SUPMOVER_VERSION "\n"
+R"_(Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 
 OPTIONS:
   --trace

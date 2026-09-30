@@ -2,6 +2,12 @@
 SupMover - Shift timings and Screen Area of PGS/Sup subtitle
 
 # Usage
+
+Version information:
+
+    SupMover --version
+    SupMover version
+
 ```
 Usage:  SupMover <input.sup> [<output.sup>] [OPTIONS ...]
 

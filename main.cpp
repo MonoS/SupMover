@@ -96,6 +96,13 @@ int main(int32_t argc, char** argv)
     size_t size, newSize;
     t_header header;
 
+    if (argc == 2 &&
+        (std::strcmp(argv[1], "--version") == 0 ||
+         std::strcmp(argv[1], "version") == 0)) {
+        std::printf("SupMover v%s\n", SUPMOVER_VERSION);
+        return 0;
+    }
+
     if (argc < 3) {
         std::fprintf(stderr, "%s", usageHelp);
         return -1;

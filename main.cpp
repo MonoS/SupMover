@@ -97,7 +97,7 @@ int main(int32_t argc, char** argv)
     t_header header;
 
     if (argc == 2 &&
-        std::strcmp(argv[1], "--version") == 0) {
+        (std::strcmp(argv[1], "--version") == 0 ||\n         std::strcmp(argv[1], "version") == 0)) {
         std::printf("SupMover v%s\n", SUPMOVER_VERSION);
         return 0;
     }
